@@ -1,10 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -27,7 +20,6 @@ export function Subscribe() {
 
   const loadPlanDetails = async () => {
     try {
-      // Get plan details
       const { data: planData, error: planError } = await supabase
         .from('subscription_plans')
         .select('*, merchants(*)')
@@ -52,34 +44,34 @@ export function Subscribe() {
   };
 
   const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!merchant?.stripe_api_key || !plan?.stripe_price_id) {
-      setError('Payment processing is not configured for this plan');
-      return;
-    }
+  e.preventDefault();
+  
+  if (!plan?.stripe_price_id) {
+    setError('Plan is not configured for payments');
+    return;
+  }
 
-    setProcessing(true);
-    setError('');
+  setProcessing(true);
+  setError('');
 
-    try {
-      const stripeService = new StripeService(merchant.stripe_api_key);
-      const checkoutUrl = await stripeService.createSubscriptionCheckout(
-        plan.stripe_price_id,
-        customerEmail,
-        customerName,
-        plan.id,
-        merchant.id
-      );
+  try {
+    const stripeService = new StripeService();
+    const checkoutUrl = await stripeService.createSubscriptionCheckout(
+      plan.stripe_price_id,
+      customerEmail,
+      customerName,
+      plan.id,
+      merchant.id
+    );
 
-      // Redirect to Stripe Checkout
-      window.location.href = checkoutUrl;
-    } catch (err: any) {
-      console.error('Error creating checkout:', err);
-      setError('Failed to initiate payment. Please try again.');
-      setProcessing(false);
-    }
-  };
+    // Redirect to Stripe Checkout
+    window.location.href = checkoutUrl;
+  } catch (err: any) {
+    console.error('Error creating checkout:', err);
+    setError('Failed to initiate payment. Please try again.');
+    setProcessing(false);
+  }
+};
 
   if (loading) {
     return (

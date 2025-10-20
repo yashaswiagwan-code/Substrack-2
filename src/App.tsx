@@ -11,6 +11,8 @@ import { Notifications } from './pages/Notifications';
 import { Subscribe } from './pages/Subscribers';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCancelled } from './pages/PaymentCancelled';
+import { SubscriptionSuccess } from './pages/SubscriptionSuccess';
+import { SubscriptionCancelled } from './pages/SubscriptionCancelled';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -128,6 +130,8 @@ function AppRoutes() {
       <Route path="/subscribe/:planId" element={<Subscribe />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+      <Route path="/subscription-success" element={<SubscriptionSuccess />} />
+      <Route path="/subscription-cancelled" element={<SubscriptionCancelled />} />
     </Routes>
   );
 }

@@ -19,7 +19,7 @@ export interface Merchant {
   bank_ifsc?: string;
   logo_url?: string;
   stripe_api_key?: string;
-  stripe_publishable_key?: string;  // Add this
+  stripe_publishable_key?: string;
   created_at: string;
   updated_at: string;
 }
@@ -35,8 +35,8 @@ export interface SubscriptionPlan {
   features: string[];
   is_active: boolean;
   subscriber_count: number;
-  stripe_product_id?: string;  // Add this
-  stripe_price_id?: string;    // Add this
+  stripe_product_id?: string;
+  stripe_price_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -53,7 +53,7 @@ export interface Subscriber {
   last_payment_date?: string;
   last_payment_amount?: number;
   stripe_subscription_id?: string;
-  stripe_customer_id?: string;  // Add this
+  stripe_customer_id?: string;
   created_at: string;
   updated_at: string;
 }
