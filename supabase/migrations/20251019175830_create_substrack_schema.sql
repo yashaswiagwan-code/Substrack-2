@@ -1,82 +1,9 @@
 /*
-<<<<<<< HEAD
   # Create Substrack Database Schema - Fixed with Database Function
 
   ## Key Changes
   - Uses SECURITY DEFINER function to bypass RLS during signup
   - This is the standard Supabase pattern for signup flows
-=======
-  # Create Substrack Database Schema
-
-  ## Overview
-  Creates the complete database structure for Substrack subscription management SaaS platform.
-
-  ## 1. New Tables
-    
-    ### `merchants`
-    - `id` (uuid, primary key) - Unique identifier linked to auth.users
-    - `email` (text) - Merchant email
-    - `full_name` (text) - Merchant full name
-    - `business_name` (text) - Business/company name
-    - `gst_number` (text, nullable) - GST registration number
-    - `bank_account` (text, nullable) - Bank account details
-    - `bank_ifsc` (text, nullable) - Bank IFSC code
-    - `logo_url` (text, nullable) - URL to uploaded logo
-    - `stripe_api_key` (text, nullable) - Encrypted Stripe API key
-    - `created_at` (timestamptz) - Account creation timestamp
-    - `updated_at` (timestamptz) - Last update timestamp
-
-    ### `subscription_plans`
-    - `id` (uuid, primary key) - Unique plan identifier
-    - `merchant_id` (uuid, foreign key) - Reference to merchant
-    - `name` (text) - Plan name (e.g., "Basic Tier")
-    - `description` (text, nullable) - Plan description
-    - `price` (decimal) - Plan price
-    - `currency` (text) - Currency code (default: 'INR')
-    - `billing_cycle` (text) - Billing frequency (monthly, yearly, etc.)
-    - `features` (jsonb) - Array of plan features
-    - `is_active` (boolean) - Plan active/inactive status
-    - `subscriber_count` (integer) - Current active subscribers
-    - `created_at` (timestamptz) - Plan creation timestamp
-    - `updated_at` (timestamptz) - Last update timestamp
-
-    ### `subscribers`
-    - `id` (uuid, primary key) - Unique subscriber identifier
-    - `merchant_id` (uuid, foreign key) - Reference to merchant
-    - `plan_id` (uuid, foreign key) - Reference to subscription plan
-    - `customer_name` (text) - Subscriber name
-    - `customer_email` (text) - Subscriber email
-    - `status` (text) - Subscription status (active, cancelled, failed)
-    - `start_date` (timestamptz) - Subscription start date
-    - `next_renewal_date` (timestamptz, nullable) - Next billing date
-    - `last_payment_date` (timestamptz, nullable) - Last successful payment
-    - `last_payment_amount` (decimal, nullable) - Last payment amount
-    - `stripe_subscription_id` (text, nullable) - Stripe subscription ID
-    - `created_at` (timestamptz) - Subscriber creation timestamp
-    - `updated_at` (timestamptz) - Last update timestamp
-
-    ### `payment_transactions`
-    - `id` (uuid, primary key) - Unique transaction identifier
-    - `merchant_id` (uuid, foreign key) - Reference to merchant
-    - `subscriber_id` (uuid, foreign key) - Reference to subscriber
-    - `plan_id` (uuid, foreign key) - Reference to plan
-    - `amount` (decimal) - Transaction amount
-    - `status` (text) - Payment status (success, failed, pending)
-    - `stripe_payment_id` (text, nullable) - Stripe payment ID
-    - `payment_date` (timestamptz) - Transaction date
-    - `created_at` (timestamptz) - Record creation timestamp
-
-  ## 2. Security
-    - Enable RLS on all tables
-    - Merchants can only access their own data
-    - Policies restrict data access to authenticated merchant owners
-
-  ## 3. Important Notes
-    - All monetary values stored as decimal for precision
-    - Timestamps use timestamptz for timezone support
-    - JSONB used for flexible feature lists
-    - Foreign keys ensure referential integrity
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 */
 
 -- Create merchants table
@@ -96,10 +23,7 @@ CREATE TABLE IF NOT EXISTS merchants (
 
 ALTER TABLE merchants ENABLE ROW LEVEL SECURITY;
 
-<<<<<<< HEAD
 -- RLS Policies for merchants
-=======
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 CREATE POLICY "Merchants can view own profile"
   ON merchants FOR SELECT
   TO authenticated
@@ -111,7 +35,6 @@ CREATE POLICY "Merchants can update own profile"
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
-<<<<<<< HEAD
 CREATE POLICY "Merchants can delete own profile"
   ON merchants FOR DELETE
   TO authenticated
@@ -142,12 +65,6 @@ BEGIN
   VALUES (user_id, user_email, user_full_name, user_business_name);
 END;
 $$;
-=======
-CREATE POLICY "Merchants can insert own profile"
-  ON merchants FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = id);
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 
 -- Create subscription_plans table
 CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -253,7 +170,6 @@ CREATE POLICY "Merchants can create own transactions"
   TO authenticated
   WITH CHECK (merchant_id = auth.uid());
 
-<<<<<<< HEAD
 -- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -286,12 +202,3 @@ CREATE INDEX idx_subscribers_plan ON subscribers(plan_id);
 CREATE INDEX idx_subscribers_status ON subscribers(status);
 CREATE INDEX idx_payment_transactions_merchant ON payment_transactions(merchant_id);
 CREATE INDEX idx_payment_transactions_subscriber ON payment_transactions(subscriber_id);
-=======
--- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_subscription_plans_merchant ON subscription_plans(merchant_id);
-CREATE INDEX IF NOT EXISTS idx_subscribers_merchant ON subscribers(merchant_id);
-CREATE INDEX IF NOT EXISTS idx_subscribers_plan ON subscribers(plan_id);
-CREATE INDEX IF NOT EXISTS idx_subscribers_status ON subscribers(status);
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_merchant ON payment_transactions(merchant_id);
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_subscriber ON payment_transactions(subscriber_id);
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9

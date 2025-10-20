@@ -1,10 +1,7 @@
 import { supabase } from './supabase';
 
 export async function signUp(email: string, password: string, fullName: string, businessName: string) {
-<<<<<<< HEAD
   // Step 1: Create the auth user
-=======
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -13,7 +10,6 @@ export async function signUp(email: string, password: string, fullName: string, 
   if (authError) throw authError;
   if (!authData.user) throw new Error('Failed to create user');
 
-<<<<<<< HEAD
   // Step 2: Call the database function to create merchant profile
   // This bypasses RLS using SECURITY DEFINER
   const { error: merchantError } = await supabase.rpc('create_merchant_profile', {
@@ -27,18 +23,6 @@ export async function signUp(email: string, password: string, fullName: string, 
     console.error('Error creating merchant profile:', merchantError);
     throw merchantError;
   }
-=======
-  const { error: merchantError } = await supabase
-    .from('merchants')
-    .insert({
-      id: authData.user.id,
-      email,
-      full_name: fullName,
-      business_name: businessName,
-    });
-
-  if (merchantError) throw merchantError;
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 
   return authData;
 }
@@ -73,8 +57,4 @@ export async function getMerchantProfile(userId: string) {
 
   if (error) throw error;
   return data;
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
