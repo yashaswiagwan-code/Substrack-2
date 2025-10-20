@@ -5,12 +5,19 @@ import { SignUp } from './pages/SignUp';
 import { Dashboard } from './pages/Dashboard';
 import { Plans } from './pages/Plans';
 import { Settings } from './pages/Settings';
+<<<<<<< HEAD
 import { Payments } from './pages/Payments';
 import { Analytics } from './pages/Analytics';
 import { Notifications } from './pages/Notifications';
 import { Subscribe } from './pages/Subscribers';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCancelled } from './pages/PaymentCancelled';
+=======
+import { Subscribers } from './pages/Subscribers';
+import { Payments } from './pages/Payments';
+import { Analytics } from './pages/Analytics';
+import { Notifications } from './pages/Notifications';
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -88,7 +95,11 @@ function AppRoutes() {
         path="/subscribers"
         element={
           <ProtectedRoute>
+<<<<<<< HEAD
             <Subscribe />
+=======
+            <Subscribers />
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
           </ProtectedRoute>
         }
       />
@@ -124,10 +135,13 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+<<<<<<< HEAD
       {/* Public subscription page */}
       <Route path="/subscribe/:planId" element={<Subscribe />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
     </Routes>
   );
 }
@@ -142,4 +156,8 @@ function App() {
   );
 }
 
+<<<<<<< HEAD
 export default App;
+=======
+export default App;
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9

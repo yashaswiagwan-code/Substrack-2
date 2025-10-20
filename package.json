@@ -11,13 +11,20 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@stripe/stripe-js": "^8.1.0",
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+<<<<<<< HEAD
     "react-router-dom": "^6.28.0",
     "stripe": "^19.1.0"
+=======
+    "react-router-dom": "^6.28.0"
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

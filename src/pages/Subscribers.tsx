@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -247,3 +248,18 @@ export function Subscribe() {
     </div>
   );
 }
+=======
+import { DashboardLayout } from '../components/DashboardLayout';
+
+export function Subscribers() {
+  return (
+    <DashboardLayout title="Subscribers">
+      <div className="bg-white p-8 rounded-xl shadow-sm text-center">
+        <h2 className="text-2xl font-semibold text-gray-700 mb-2">Subscribers Management</h2>
+        <p className="text-gray-500">View and manage your subscription subscribers.</p>
+        <p className="text-sm text-gray-400 mt-4">This feature is coming soon in the full version.</p>
+      </div>
+    </DashboardLayout>
+  );
+}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9

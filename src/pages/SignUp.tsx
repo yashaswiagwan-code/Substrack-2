@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -5,6 +6,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 // @ts-nocheck
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signUp } from '../lib/auth';
@@ -149,4 +152,8 @@ export function SignUp() {
       </div>
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9

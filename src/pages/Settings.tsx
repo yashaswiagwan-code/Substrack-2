@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -5,21 +6,32 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 // @ts-nocheck
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+<<<<<<< HEAD
 import { Eye, EyeOff, RefreshCw, Check, X } from 'lucide-react';
+=======
+import { Eye, EyeOff, RefreshCw } from 'lucide-react';
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 
 export function Settings() {
   const { user, merchant, refreshMerchant } = useAuth();
   const [activeTab, setActiveTab] = useState('business');
   const [showApiKey, setShowApiKey] = useState(false);
+<<<<<<< HEAD
   const [showPublishableKey, setShowPublishableKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [testingStripe, setTestingStripe] = useState(false);
   const [stripeTestResult, setStripeTestResult] = useState<'success' | 'error' | null>(null);
+=======
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 
   const [businessInfo, setBusinessInfo] = useState({
     business_name: '',
@@ -29,8 +41,12 @@ export function Settings() {
   });
 
   const [stripeInfo, setStripeInfo] = useState({
+<<<<<<< HEAD
     stripe_secret_key: '',
     stripe_publishable_key: '',
+=======
+    stripe_api_key: '',
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   });
 
   const [profileInfo, setProfileInfo] = useState({
@@ -47,8 +63,12 @@ export function Settings() {
         bank_ifsc: merchant.bank_ifsc || '',
       });
       setStripeInfo({
+<<<<<<< HEAD
         stripe_secret_key: merchant.stripe_api_key || '',
         stripe_publishable_key: merchant.stripe_publishable_key || '',
+=======
+        stripe_api_key: merchant.stripe_api_key || '',
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
       });
       setProfileInfo({
         full_name: merchant.full_name || '',
@@ -80,6 +100,7 @@ export function Settings() {
     }
   };
 
+<<<<<<< HEAD
   const testStripeConnection = async () => {
     setTestingStripe(true);
     setStripeTestResult(null);
@@ -100,6 +121,8 @@ export function Settings() {
     }
   };
 
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   const handleStripeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -108,19 +131,30 @@ export function Settings() {
     try {
       const { error } = await supabase
         .from('merchants')
+<<<<<<< HEAD
         .update({
           stripe_api_key: stripeInfo.stripe_secret_key,
           stripe_publishable_key: stripeInfo.stripe_publishable_key,
         })
+=======
+        .update({ stripe_api_key: stripeInfo.stripe_api_key })
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
         .eq('id', user!.id);
 
       if (error) throw error;
 
       await refreshMerchant();
+<<<<<<< HEAD
       setSuccessMessage('Stripe API keys updated successfully!');
     } catch (error: any) {
       console.error('Error updating Stripe keys:', error);
       alert('Failed to update Stripe API keys');
+=======
+      setSuccessMessage('Stripe API key updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating Stripe key:', error);
+      alert('Failed to update Stripe API key');
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
     } finally {
       setLoading(false);
     }
@@ -149,6 +183,14 @@ export function Settings() {
     }
   };
 
+<<<<<<< HEAD
+=======
+  const generateApiKey = () => {
+    const key = 'sk_test_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    setStripeInfo({ stripe_api_key: key });
+  };
+
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-4xl">
@@ -172,14 +214,24 @@ export function Settings() {
                 Business Information
               </button>
               <button
+<<<<<<< HEAD
                 onClick={() => setActiveTab('stripe')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'stripe'
+=======
+                onClick={() => setActiveTab('integration')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'integration'
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
+<<<<<<< HEAD
                 Stripe Integration
+=======
+                Integration
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
               </button>
               <button
                 onClick={() => setActiveTab('profile')}
@@ -270,6 +322,7 @@ export function Settings() {
               </form>
             )}
 
+<<<<<<< HEAD
             {activeTab === 'stripe' && (
               <form onSubmit={handleStripeSubmit} className="space-y-6">
                 <div>
@@ -291,23 +344,46 @@ export function Settings() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Stripe Secret Key
+=======
+            {activeTab === 'integration' && (
+              <form onSubmit={handleStripeSubmit} className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Stripe Integration</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Connect your Stripe account to accept payments. Your API key is encrypted and stored securely.
+                  </p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Stripe API Key
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                       </label>
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <input
                             type={showApiKey ? 'text' : 'password'}
+<<<<<<< HEAD
                             value={stripeInfo.stripe_secret_key}
                             onChange={(e) =>
                               setStripeInfo({ ...stripeInfo, stripe_secret_key: e.target.value })
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="sk_live_..."
+=======
+                            value={stripeInfo.stripe_api_key}
+                            onChange={(e) =>
+                              setStripeInfo({ ...stripeInfo, stripe_api_key: e.target.value })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="sk_test_..."
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                           />
                           <button
                             type="button"
                             onClick={() => setShowApiKey(!showApiKey)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                           >
+<<<<<<< HEAD
                             {showApiKey ? (
                               <EyeOff className="w-5 h-5" />
                             ) : (
@@ -393,6 +469,24 @@ export function Settings() {
                         )}
                       </div>
                     )}
+=======
+                            {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={generateApiKey}
+                          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center"
+                          title="Generate test key"
+                        >
+                          <RefreshCw className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Get your API key from the Stripe Dashboard
+                      </p>
+                    </div>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   </div>
                 </div>
                 <div className="flex justify-end">
@@ -401,7 +495,11 @@ export function Settings() {
                     disabled={loading}
                     className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                   >
+<<<<<<< HEAD
                     {loading ? 'Saving...' : 'Save API Keys'}
+=======
+                    {loading ? 'Saving...' : 'Save API Key'}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   </button>
                 </div>
               </form>

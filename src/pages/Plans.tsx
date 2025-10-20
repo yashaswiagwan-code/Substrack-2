@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -5,10 +6,13 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 
 // @ts-nocheck
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase, SubscriptionPlan } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+<<<<<<< HEAD
 import { Plus, Check, ExternalLink } from 'lucide-react';
 import { StripeService } from '../services/stripeService';
 
@@ -18,6 +22,15 @@ export function Plans() {
   const [showModal, setShowModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(false);
+=======
+import { Plus, Check } from 'lucide-react';
+
+export function Plans() {
+  const { user } = useAuth();
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -48,6 +61,7 @@ export function Plans() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+<<<<<<< HEAD
     setLoading(true);
 
     try {
@@ -124,6 +138,42 @@ export function Plans() {
     } finally {
       setLoading(false);
     }
+=======
+
+    const planData = {
+      merchant_id: user!.id,
+      name: formData.name,
+      description: formData.description,
+      price: parseFloat(formData.price),
+      billing_cycle: formData.billing_cycle,
+      features: formData.features.filter(f => f.trim() !== ''),
+      is_active: true,
+    };
+
+    if (editingPlan) {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .update(planData)
+        .eq('id', editingPlan.id);
+
+      if (error) {
+        console.error('Error updating plan:', error);
+      }
+    } else {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .insert(planData);
+
+      if (error) {
+        console.error('Error creating plan:', error);
+      }
+    }
+
+    setShowModal(false);
+    setEditingPlan(null);
+    resetForm();
+    loadPlans();
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   };
 
   const handleEdit = (plan: SubscriptionPlan) => {
@@ -139,16 +189,21 @@ export function Plans() {
   };
 
   const handleDelete = async (planId: string) => {
+<<<<<<< HEAD
     if (!confirm('Are you sure you want to delete this plan?')) return;
 
     const plan = plans.find((p) => p.id === planId);
 
     try {
+=======
+    if (confirm('Are you sure you want to delete this plan?')) {
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
       const { error } = await supabase
         .from('subscription_plans')
         .delete()
         .eq('id', planId);
 
+<<<<<<< HEAD
       if (error) throw error;
 
       // Archive in Stripe if it exists
@@ -165,6 +220,13 @@ export function Plans() {
     } catch (error: any) {
       console.error('Error deleting plan:', error);
       alert('Failed to delete plan: ' + error.message);
+=======
+      if (error) {
+        console.error('Error deleting plan:', error);
+      } else {
+        loadPlans();
+      }
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
     }
   };
 
@@ -181,6 +243,7 @@ export function Plans() {
     }
   };
 
+<<<<<<< HEAD
   const getPaymentLink = (plan: SubscriptionPlan): string => {
     if (!plan.stripe_price_id) return '#';
     const baseUrl = window.location.origin;
@@ -193,6 +256,8 @@ export function Plans() {
     alert('Payment link copied to clipboard!');
   };
 
+=======
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
   const resetForm = () => {
     setFormData({
       name: '',
@@ -226,6 +291,7 @@ export function Plans() {
 
   return (
     <DashboardLayout title="Plans">
+<<<<<<< HEAD
       {/* Stripe Warning */}
       {!merchant?.stripe_api_key && (
         <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -261,6 +327,12 @@ export function Plans() {
           <p className="text-sm text-gray-500 mt-1">
             Create, edit, and manage your subscription offerings.
           </p>
+=======
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-700">Manage Subscription Plans</h2>
+          <p className="text-sm text-gray-500 mt-1">Create, edit, and manage your subscription offerings.</p>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
         </div>
         <button
           onClick={() => {
@@ -285,6 +357,7 @@ export function Plans() {
           >
             <div>
               <div className="flex justify-between items-start mb-4">
+<<<<<<< HEAD
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-gray-800">{plan.name}</h3>
                   {plan.stripe_product_id && (
@@ -294,6 +367,9 @@ export function Plans() {
                     </span>
                   )}
                 </div>
+=======
+                <h3 className="text-lg font-bold text-gray-800">{plan.name}</h3>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -305,15 +381,24 @@ export function Plans() {
                 </label>
               </div>
               <p className="text-3xl font-bold text-gray-900">
+<<<<<<< HEAD
                 ₹{plan.price}
+=======
+                ${plan.price}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                 <span className="text-base font-medium text-gray-500">/{plan.billing_cycle}</span>
               </p>
               <p className="text-sm text-gray-500 mt-2">{plan.description}</p>
               <ul className="space-y-3 text-sm text-gray-600 my-6">
                 {plan.features.map((feature, idx) => (
                   <li key={idx} className="flex items-center">
+<<<<<<< HEAD
                     <Check className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
                     <span>{feature}</span>
+=======
+                    <Check className="w-4 h-4 text-green-500 mr-2" />
+                    {feature}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   </li>
                 ))}
               </ul>
@@ -322,6 +407,7 @@ export function Plans() {
               <p className="text-sm text-gray-500 mb-4 font-medium">
                 {plan.subscriber_count} Active Subscribers
               </p>
+<<<<<<< HEAD
               
               {/* Payment Link */}
               {plan.stripe_price_id && merchant?.stripe_api_key && (
@@ -338,12 +424,22 @@ export function Plans() {
                 <button
                   onClick={() => handleEdit(plan)}
                   className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-semibold text-sm hover:bg-gray-200"
+=======
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEdit(plan)}
+                  className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-semibold text-sm hover:bg-gray-200"
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(plan.id)}
+<<<<<<< HEAD
                   className="flex-1 bg-red-50 text-red-600 px-4 py-2 rounded-md font-semibold text-sm hover:bg-red-100"
+=======
+                  className="w-full bg-red-50 text-red-600 px-4 py-2 rounded-md font-semibold text-sm hover:bg-red-100"
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                 >
                   Delete
                 </button>
@@ -355,9 +451,13 @@ export function Plans() {
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow-sm">
         <h3 className="font-semibold text-gray-700">Website Integration</h3>
+<<<<<<< HEAD
         <p className="text-sm text-gray-500 mt-1">
           Copy the code below to embed the subscription plans on your website.
         </p>
+=======
+        <p className="text-sm text-gray-500 mt-1">Copy the code below to embed the subscription plans on your website.</p>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
         <div className="mt-4 bg-gray-900 rounded-lg p-4 text-white font-mono text-sm relative">
           <button
             onClick={copyEmbedCode}
@@ -365,6 +465,7 @@ export function Plans() {
           >
             Copy
           </button>
+<<<<<<< HEAD
           <pre>
             <code>{`<div id="substrack-embed"></div>\n<script src="https://cdn.substrack.com/embed.js" async></script>`}</code>
           </pre>
@@ -372,6 +473,12 @@ export function Plans() {
       </div>
 
       {/* Modal for Create/Edit Plan */}
+=======
+          <pre><code>{`<div id="substrack-embed"></div>\n<script src="https://cdn.substrack.com/embed.js" async></script>`}</code></pre>
+        </div>
+      </div>
+
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -381,9 +488,13 @@ export function Plans() {
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
+<<<<<<< HEAD
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Plan Name
                   </label>
+=======
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Plan Name</label>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   <input
                     type="text"
                     value={formData.name}
@@ -394,9 +505,13 @@ export function Plans() {
                   />
                 </div>
                 <div>
+<<<<<<< HEAD
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Description
                   </label>
+=======
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -419,6 +534,7 @@ export function Plans() {
                     />
                   </div>
                   <div>
+<<<<<<< HEAD
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Billing Cycle
                     </label>
@@ -427,6 +543,12 @@ export function Plans() {
                       onChange={(e) =>
                         setFormData({ ...formData, billing_cycle: e.target.value })
                       }
+=======
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Billing Cycle</label>
+                    <select
+                      value={formData.billing_cycle}
+                      onChange={(e) => setFormData({ ...formData, billing_cycle: e.target.value })}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="monthly">Monthly</option>
@@ -479,6 +601,7 @@ export function Plans() {
                   </button>
                   <button
                     type="submit"
+<<<<<<< HEAD
                     disabled={loading}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                   >
@@ -487,6 +610,11 @@ export function Plans() {
                       : editingPlan
                       ? 'Update Plan'
                       : 'Create Plan'}
+=======
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    {editingPlan ? 'Update Plan' : 'Create Plan'}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
                   </button>
                 </div>
               </form>
@@ -496,4 +624,8 @@ export function Plans() {
       )}
     </DashboardLayout>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 71867761cd32b03b914f5f5f95183b89538731c9
