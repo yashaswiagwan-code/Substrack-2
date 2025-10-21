@@ -12,12 +12,13 @@
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.1.0",
-    "@supabase/supabase-js": "^2.57.4",
+    "@supabase/supabase-js": "^2.76.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "stripe": "^19.1.0"
+    "stripe": "^19.1.0",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

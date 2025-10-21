@@ -9,7 +9,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -17,20 +16,17 @@ serve(async (req) => {
   try {
     const { priceId, customerEmail, customerName, planId, merchantId } = await req.json()
 
-    // Validate required fields
     if (!priceId || !customerEmail || !customerName || !planId || !merchantId) {
       throw new Error('Missing required fields')
     }
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get merchant's Stripe API key
     const { data: merchant, error: merchantError } = await supabase
       .from('merchants')
-      .select('stripe_api_key')
+      .select('stripe_api_key, business_name')
       .eq('id', merchantId)
       .single()
 
@@ -38,13 +34,15 @@ serve(async (req) => {
       throw new Error('Merchant Stripe key not found')
     }
 
-    // Initialize Stripe with merchant's key
     const stripe = new Stripe(merchant.stripe_api_key, {
       apiVersion: '2023-10-16',
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    // Create Stripe Checkout Session
+    const origin = req.headers.get('origin') || 'https://yourdomain.com'
+    const successUrl = `${origin}/subscription-success?session_id={CHECKOUT_SESSION_ID}&merchant=${encodeURIComponent(merchant.business_name)}`
+    const cancelUrl = `${origin}/subscription-cancelled`
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -55,8 +53,8 @@ serve(async (req) => {
         },
       ],
       customer_email: customerEmail,
-      success_url: `${req.headers.get('origin')}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get('origin')}/subscription-cancelled`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         plan_id: planId,
         merchant_id: merchantId,
