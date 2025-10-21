@@ -29,4 +29,76 @@ export class StripeService {
       throw new Error('Failed to create checkout session');
     }
   }
+
+  // Sync plan to Stripe (create product and price)
+  async syncPlanToStripe(
+    planId: string,
+    planName: string,
+    planDescription: string,
+    price: number,
+    currency: string,
+    billingCycle: string
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-stripe-plan', {
+        body: {
+          action: 'create',
+          planId,
+          planName,
+          planDescription,
+          price,
+          currency,
+          billingCycle,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to create plan in Stripe');
+    } catch (error: any) {
+      console.error('Error syncing plan to Stripe:', error);
+      throw new Error('Failed to sync plan to Stripe');
+    }
+  }
+
+  // Update plan in Stripe
+  async updatePlanInStripe(
+    stripeProductId: string,
+    planName: string,
+    planDescription: string
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-stripe-plan', {
+        body: {
+          action: 'update',
+          stripeProductId,
+          planName,
+          planDescription,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to update plan in Stripe');
+    } catch (error: any) {
+      console.error('Error updating plan in Stripe:', error);
+      throw new Error('Failed to update plan in Stripe');
+    }
+  }
+
+  // Archive plan in Stripe
+  async archivePlanInStripe(stripeProductId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-stripe-plan', {
+        body: {
+          action: 'archive',
+          stripeProductId,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to archive plan in Stripe');
+    } catch (error: any) {
+      console.error('Error archiving plan in Stripe:', error);
+      throw new Error('Failed to archive plan in Stripe');
+    }
+  }
 }

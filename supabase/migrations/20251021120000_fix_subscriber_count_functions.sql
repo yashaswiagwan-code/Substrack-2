@@ -1,20 +1,26 @@
--- Function to increment subscriber count
-CREATE OR REPLACE FUNCTION increment_subscriber_count(plan_id uuid)
+-- supabase/migrations/20251022_fix_subscriber_count_functions.sql
+
+-- Drop old functions
+DROP FUNCTION IF EXISTS increment_subscriber_count(uuid);
+DROP FUNCTION IF EXISTS decrement_subscriber_count(uuid);
+
+-- Function to increment subscriber count (with correct parameter name)
+CREATE OR REPLACE FUNCTION increment_subscriber_count(p_plan_id uuid)
 RETURNS void AS $$
 BEGIN
   UPDATE subscription_plans
   SET subscriber_count = subscriber_count + 1
-  WHERE id = plan_id;
+  WHERE id = p_plan_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to decrement subscriber count
-CREATE OR REPLACE FUNCTION decrement_subscriber_count(plan_id uuid)
+-- Function to decrement subscriber count (with correct parameter name)
+CREATE OR REPLACE FUNCTION decrement_subscriber_count(p_plan_id uuid)
 RETURNS void AS $$
 BEGIN
   UPDATE subscription_plans
   SET subscriber_count = GREATEST(subscriber_count - 1, 0)
-  WHERE id = plan_id;
+  WHERE id = p_plan_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -36,7 +42,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger
+-- Recreate trigger (in case it was dropped)
 DROP TRIGGER IF EXISTS trigger_update_subscriber_count ON subscribers;
 CREATE TRIGGER trigger_update_subscriber_count
   AFTER UPDATE OF status ON subscribers

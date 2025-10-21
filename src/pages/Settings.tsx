@@ -2,17 +2,19 @@ import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, RefreshCw, Check, X } from 'lucide-react';
+import { Eye, EyeOff, RefreshCw, Check, X, Copy } from 'lucide-react';
 
 export function Settings() {
   const { user, merchant, refreshMerchant } = useAuth();
   const [activeTab, setActiveTab] = useState('business');
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [showPublishableKey, setShowPublishableKey] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [testingStripe, setTestingStripe] = useState(false);
   const [stripeTestResult, setStripeTestResult] = useState<'success' | 'error' | null>(null);
+  const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
 
   const [businessInfo, setBusinessInfo] = useState({
     business_name: '',
@@ -24,12 +26,16 @@ export function Settings() {
   const [stripeInfo, setStripeInfo] = useState({
     stripe_secret_key: '',
     stripe_publishable_key: '',
+    stripe_webhook_secret: '',
   });
 
   const [profileInfo, setProfileInfo] = useState({
     full_name: '',
     email: '',
   });
+
+  // Webhook URL - dynamically constructed
+  const webhookUrl = `${window.location.origin.replace(window.location.hostname, 'niisdiotuzvydotoaurt.supabase.co')}/functions/v1/stripe-webhook`;
 
   useEffect(() => {
     if (merchant) {
@@ -42,6 +48,7 @@ export function Settings() {
       setStripeInfo({
         stripe_secret_key: merchant.stripe_api_key || '',
         stripe_publishable_key: merchant.stripe_publishable_key || '',
+        stripe_webhook_secret: (merchant as any).stripe_webhook_secret || '',
       });
       setProfileInfo({
         full_name: merchant.full_name || '',
@@ -109,6 +116,12 @@ export function Settings() {
     }
   };
 
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setWebhookUrlCopied(true);
+    setTimeout(() => setWebhookUrlCopied(false), 2000);
+  };
+
   const handleStripeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -133,6 +146,7 @@ export function Settings() {
         .update({
           stripe_api_key: stripeInfo.stripe_secret_key,
           stripe_publishable_key: stripeInfo.stripe_publishable_key,
+          stripe_webhook_secret: stripeInfo.stripe_webhook_secret,
         })
         .eq('id', user!.id);
 
@@ -378,6 +392,102 @@ export function Settings() {
                       <p className="text-xs text-gray-500 mt-1">
                         Starts with pk_live_ or pk_test_
                       </p>
+                    </div>
+
+                    {/* Webhook Configuration Section */}
+                    <div className="border-t pt-4 mt-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-3">Webhook Configuration</h4>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Configure webhooks in your{' '}
+                        <a
+                          href="https://dashboard.stripe.com/webhooks"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Stripe Dashboard
+                        </a>{' '}
+                        to receive subscription updates.
+                      </p>
+
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Your Webhook URL
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={webhookUrl}
+                            readOnly
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={copyWebhookUrl}
+                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            {webhookUrlCopied ? (
+                              <>
+                                <Check className="w-4 h-4 text-green-600" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-blue-800 font-medium mb-2">
+                          📋 Setup Instructions:
+                        </p>
+                        <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                          <li>Copy the webhook URL above</li>
+                          <li>Go to Stripe Dashboard → Webhooks</li>
+                          <li>Click "Add endpoint" and paste the URL</li>
+                          <li>Select these events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
+                          <li>Copy the "Signing secret" (starts with whsec_)</li>
+                          <li>Paste it in the field below</li>
+                        </ol>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Webhook Signing Secret
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showWebhookSecret ? 'text' : 'password'}
+                            value={stripeInfo.stripe_webhook_secret}
+                            onChange={(e) =>
+                              setStripeInfo({
+                                ...stripeInfo,
+                                stripe_webhook_secret: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="whsec_..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          >
+                            {showWebhookSecret ? (
+                              <EyeOff className="w-5 h-5" />
+                            ) : (
+                              <Eye className="w-5 h-5" />
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Starts with whsec_ (from Stripe webhook settings)
+                        </p>
+                      </div>
                     </div>
 
                     {stripeInfo.stripe_secret_key && (

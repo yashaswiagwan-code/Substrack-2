@@ -1,241 +1,438 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { StripeService } from '../services/stripeService';
-import { Loader2, Check } from 'lucide-react';
+// src/pages/Subscribers.tsx - Subscriber Management Page
+import { useEffect, useState } from 'react'
+import { DashboardLayout } from '../components/DashboardLayout'
+import { supabase, Subscriber } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { Search, Filter, Download } from 'lucide-react'
 
-export function Subscribe() {
-  const { planId } = useParams<{ planId: string }>();
-  const [plan, setPlan] = useState<any>(null);
-  const [merchant, setMerchant] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+interface SubscriberWithPlan extends Subscriber {
+  plan_name: string
+  plan_price: number
+}
+
+export function Subscribers() {
+  const { user } = useAuth()
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([])
+  const [filteredSubscribers, setFilteredSubscribers] = useState<Subscriber[]>(
+    []
+  )
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
-    loadPlanDetails();
-  }, [planId]);
-
-  const loadPlanDetails = async () => {
-    try {
-      const { data: planData, error: planError } = await supabase
-        .from('subscription_plans')
-        .select('*, merchants(*)')
-        .eq('id', planId)
-        .eq('is_active', true)
-        .single();
-
-      if (planError) throw planError;
-      if (!planData) {
-        setError('Plan not found or inactive');
-        return;
-      }
-
-      setPlan(planData);
-      setMerchant((planData as any).merchants);
-    } catch (err: any) {
-      console.error('Error loading plan:', err);
-      setError('Failed to load plan details');
-    } finally {
-      setLoading(false);
+    if (user) {
+      loadSubscribers()
     }
-  };
+  }, [user])
 
-  const handleSubscribe = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!plan?.stripe_price_id) {
-    setError('Plan is not configured for payments');
-    return;
+  useEffect(() => {
+    filterSubscribers()
+  }, [searchQuery, statusFilter, subscribers])
+
+  const loadSubscribers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subscribers')
+        .select(
+          `
+          id,
+          customer_name,
+          customer_email,
+          status,
+          start_date,
+          next_renewal_date,
+          last_payment_amount,
+          last_payment_date,
+          subscription_plans (
+            name,
+            price
+          )
+        `
+        )
+        .eq('merchant_id', user!.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const formatted = data.map((sub: any) => ({
+        id: sub.id,
+        customer_name: sub.customer_name,
+        customer_email: sub.customer_email,
+        status: sub.status,
+        start_date: sub.start_date,
+        next_renewal_date: sub.next_renewal_date,
+        last_payment_amount: sub.last_payment_amount,
+        last_payment_date: sub.last_payment_date,
+        plan_name: sub.subscription_plans?.name || 'Unknown Plan',
+        plan_price: sub.subscription_plans?.price || 0,
+      }))
+
+      setSubscribers(formatted)
+      setFilteredSubscribers(formatted)
+    } catch (error) {
+      console.error('Error loading subscribers:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  setProcessing(true);
-  setError('');
+  const filterSubscribers = () => {
+    let filtered = [...subscribers]
 
-  try {
-    const stripeService = new StripeService();
-    const checkoutUrl = await stripeService.createSubscriptionCheckout(
-      plan.stripe_price_id,
-      customerEmail,
-      customerName,
-      plan.id,
-      merchant.id
-    );
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (sub) =>
+          sub.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          sub.customer_email
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          sub.plan_name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
 
-    // Redirect to Stripe Checkout
-    window.location.href = checkoutUrl;
-  } catch (err: any) {
-    console.error('Error creating checkout:', err);
-    setError('Failed to initiate payment. Please try again.');
-    setProcessing(false);
-  }
-};
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((sub) => sub.status === statusFilter)
+    }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
+    setFilteredSubscribers(filtered)
+    setCurrentPage(1) // Reset to first page when filtering
   }
 
-  if (error && !plan) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="text-red-600 text-5xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Plan Not Available</h2>
-          <p className="text-gray-600">{error}</p>
-        </div>
-      </div>
-    );
+  const getStatusBadge = (status: string) => {
+    const badges = {
+      active: 'bg-green-100 text-green-800',
+      cancelled: 'bg-gray-100 text-gray-800',
+      failed: 'bg-red-100 text-red-800',
+    }
+    return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800'
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-'
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  const exportToCSV = () => {
+    const headers = [
+      'Customer Name',
+      'Email',
+      'Plan',
+      'Status',
+      'Start Date',
+      'Next Billing',
+    ]
+    const rows = filteredSubscribers.map((sub) => [
+      sub.customer_name,
+      sub.customer_email,
+      sub.plan_name,
+      sub.status,
+      formatDate(sub.start_date),
+      formatDate(sub.next_renewal_date),
+    ])
+
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `subscribers-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+  }
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredSubscribers.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentSubscribers = filteredSubscribers.slice(startIndex, endIndex)
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <DashboardLayout title='Subscribers'>
+      <div className='bg-white p-6 rounded-xl shadow-sm'>
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Subscribe to {merchant?.business_name}
-          </h1>
-          <p className="text-gray-600">Choose your plan and get started today</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Plan Details */}
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">{plan.name}</h2>
-            <p className="text-4xl font-bold text-blue-600 mb-4">
-              ₹{plan.price}
-              <span className="text-lg font-normal text-gray-500">/{plan.billing_cycle}</span>
+        <div className='flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b'>
+          <div>
+            <h2 className='text-xl font-semibold text-gray-700'>
+              All Subscribers
+            </h2>
+            <p className='text-sm text-gray-500 mt-1'>
+              Manage your customer subscriptions ({filteredSubscribers.length}{' '}
+              total)
             </p>
-            <p className="text-gray-600 mb-6">{plan.description}</p>
-
-            <div className="border-t pt-6">
-              <h3 className="font-semibold text-gray-800 mb-4">What's included:</h3>
-              <ul className="space-y-3">
-                {plan.features.map((feature: string, idx: number) => (
-                  <li key={idx} className="flex items-start">
-                    <Check className="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
 
-          {/* Subscription Form */}
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Complete Your Subscription</h2>
+          {/* Search and Actions */}
+          <div className='flex items-center space-x-2 mt-4 md:mt-0'>
+            {/* Search */}
+            <div className='relative'>
+              <input
+                type='text'
+                placeholder='Search subscribers...'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className='pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+              />
+              <Search className='w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' />
+            </div>
 
-            {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubscribe} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="john@example.com"
-                />
-              </div>
-
-              <div className="border-t pt-4 mt-6">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-semibold">₹{plan.price}</span>
-                </div>
-                <div className="flex justify-between text-sm mb-4">
-                  <span className="text-gray-600">Billing Cycle</span>
-                  <span className="font-semibold capitalize">{plan.billing_cycle}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-4">
-                  <span>Total</span>
-                  <span className="text-blue-600">₹{plan.price}</span>
-                </div>
-              </div>
-
+            {/* Filter Button */}
+            <div className='relative'>
               <button
-                type="submit"
-                disabled={processing}
-                className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                className='px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center text-sm'
               >
-                {processing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Continue to Payment'
-                )}
+                <Filter className='w-4 h-4 mr-2' />
+                Filter
               </button>
 
-              <p className="text-xs text-gray-500 text-center mt-4">
-                Your payment will be processed securely by Stripe
-              </p>
-            </form>
+              {showFilterMenu && (
+                <div className='absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20 border'>
+                  <div className='p-2'>
+                    <button
+                      onClick={() => {
+                        setStatusFilter('all')
+                        setShowFilterMenu(false)
+                      }}
+                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                        statusFilter === 'all'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      All Status
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStatusFilter('active')
+                        setShowFilterMenu(false)
+                      }}
+                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                        statusFilter === 'active'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      Active
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStatusFilter('cancelled')
+                        setShowFilterMenu(false)
+                      }}
+                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                        statusFilter === 'cancelled'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      Cancelled
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStatusFilter('failed')
+                        setShowFilterMenu(false)
+                      }}
+                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                        statusFilter === 'failed'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      Failed
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Export Button */}
+            <button
+              onClick={exportToCSV}
+              className='px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center text-sm'
+            >
+              <Download className='w-4 h-4 mr-2' />
+              Export
+            </button>
           </div>
         </div>
 
-        {/* Trust Badges */}
-        <div className="mt-8 text-center">
-          <div className="inline-flex items-center space-x-6 text-sm text-gray-600">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Secure Payment
-            </div>
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Cancel Anytime
-            </div>
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-              </svg>
-              Email Support
-            </div>
+        {/* Table */}
+        {loading ? (
+          <div className='flex justify-center items-center py-12'>
+            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600'></div>
           </div>
-        </div>
+        ) : filteredSubscribers.length === 0 ? (
+          <div className='text-center py-12'>
+            <p className='text-gray-500'>No subscribers found</p>
+          </div>
+        ) : (
+          <>
+            <div className='overflow-x-auto mt-4'>
+              <table className='w-full text-sm text-left text-gray-500'>
+                <thead className='text-xs text-gray-700 uppercase bg-gray-50'>
+                  <tr>
+                    <th scope='col' className='px-6 py-3'>
+                      Customer
+                    </th>
+                    <th scope='col' className='px-6 py-3'>
+                      Plan
+                    </th>
+                    <th scope='col' className='px-6 py-3'>
+                      Status
+                    </th>
+                    <th scope='col' className='px-6 py-3'>
+                      Start Date
+                    </th>
+                    <th scope='col' className='px-6 py-3'>
+                      Next Billing
+                    </th>
+                    <th scope='col' className='px-6 py-3'>
+                      Last Payment
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentSubscribers.map((subscriber) => (
+                    <tr
+                      key={subscriber.id}
+                      className='bg-white border-b hover:bg-gray-50'
+                    >
+                      <td className='px-6 py-4'>
+                        <div className='font-medium text-gray-900'>
+                          {subscriber.customer_name}
+                        </div>
+                        <div className='text-xs text-gray-500'>
+                          {subscriber.customer_email}
+                        </div>
+                      </td>
+                      <td className='px-6 py-4 font-medium'>
+                        {subscriber.plan_name}
+                      </td>
+                      <td className='px-6 py-4'>
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(
+                            subscriber.status
+                          )}`}
+                        >
+                          {subscriber.status.charAt(0).toUpperCase() +
+                            subscriber.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className='px-6 py-4'>
+                        {formatDate(subscriber.start_date)}
+                      </td>
+                      <td className='px-6 py-4'>
+                        {formatDate(subscriber.next_renewal_date)}
+                      </td>
+                      <td className='px-6 py-4'>
+                        {subscriber.last_payment_amount ? (
+                          <div>
+                            <div className='font-medium'>
+                              ₹{subscriber.last_payment_amount}
+                            </div>
+                            <div className='text-xs text-gray-500'>
+                              {formatDate(subscriber.last_payment_date)}
+                            </div>
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className='flex justify-between items-center mt-4'>
+                <span className='text-sm text-gray-600'>
+                  Showing {startIndex + 1} to{' '}
+                  {Math.min(endIndex, filteredSubscribers.length)} of{' '}
+                  {filteredSubscribers.length} results
+                </span>
+                <div className='flex items-center space-x-1'>
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className='px-3 py-1 border rounded-md hover:bg-gray-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                  >
+                    Previous
+                  </button>
+
+                  {/* Page numbers */}
+                  {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = idx + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = idx + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + idx
+                    } else {
+                      pageNum = currentPage - 2 + idx
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`px-3 py-1 border rounded-md text-sm ${
+                          currentPage === pageNum
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                            : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <>
+                      <span className='px-3 py-1 text-sm'>...</span>
+                      <button
+                        onClick={() => goToPage(totalPages)}
+                        className='px-3 py-1 border rounded-md hover:bg-gray-100 text-sm'
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className='px-3 py-1 border rounded-md hover:bg-gray-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-    </div>
-  );
+    </DashboardLayout>
+  )
 }
