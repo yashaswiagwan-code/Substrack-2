@@ -121,13 +121,13 @@ export function Subscribers() {
   }
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const exportToCSV = () => {
     const headers = [
@@ -181,8 +181,7 @@ export function Subscribers() {
               All Subscribers
             </h2>
             <p className='text-sm text-gray-500 mt-1'>
-              Manage your customer subscriptions ({filteredSubscribers.length}{' '}
-              total)
+              Manage your customer subscriptions.
             </p>
           </div>
 
@@ -259,6 +258,19 @@ export function Subscribers() {
                       }}
                       className={`block w-full text-left px-3 py-2 rounded text-sm ${
                         statusFilter === 'failed'
+                    <button
+                      onClick={() => {
+                        setStatusFilter('pending')
+                        setShowFilterMenu(false)
+                      }}
+                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                        statusFilter === 'pending'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      Pending
+                    </button>
                           ? 'bg-blue-50 text-blue-600'
                           : 'hover:bg-gray-50'
                       }`}
@@ -323,7 +335,7 @@ export function Subscribers() {
                       Next Billing
                     </th>
                     <th scope='col' className='px-6 py-3'>
-                      Last Payment
+                      <span className='sr-only'>Actions</span>
                     </th>
                   </tr>
                 </thead>
