@@ -1,4 +1,4 @@
-// supabase/functions/stripe-webhook/index.ts - COMPLETE FIXED VERSION
+// supabase/functions/stripe-webhook/index.ts - FIXED VERSION
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -19,10 +19,23 @@ serve(async (req) => {
     const body = await req.text()
     const parsedBody = JSON.parse(body)
     
-    // Try to get merchant_id from metadata (works for checkout.session.completed)
+    console.log('📧 Event type:', parsedBody.type)
+    
+    // Try to get merchant_id from different locations based on event type
     let merchantId = parsedBody.data?.object?.metadata?.merchant_id
     
-    console.log('📧 Event type:', parsedBody.type)
+    // For invoice events, metadata is in parent.subscription_details.metadata
+    if (!merchantId && parsedBody.data?.object?.parent?.subscription_details?.metadata) {
+      merchantId = parsedBody.data.object.parent.subscription_details.metadata.merchant_id
+      console.log('🔍 Found merchant_id in parent.subscription_details.metadata:', merchantId)
+    }
+    
+    // For line items in invoices, check lines.data[0].metadata
+    if (!merchantId && parsedBody.data?.object?.lines?.data?.[0]?.metadata?.merchant_id) {
+      merchantId = parsedBody.data.object.lines.data[0].metadata.merchant_id
+      console.log('🔍 Found merchant_id in lines.data[0].metadata:', merchantId)
+    }
+    
     console.log('🔍 Merchant ID from metadata:', merchantId)
 
     // If no merchant_id in metadata, try to find it from subscription_id
@@ -47,7 +60,6 @@ serve(async (req) => {
     
     if (!merchantId) {
       console.error('❌ No merchant_id found in metadata or subscriber lookup')
-      console.error('📦 Event data:', JSON.stringify(parsedBody.data?.object, null, 2))
       return new Response('No merchant_id found', { status: 400 })
     }
 
@@ -76,7 +88,7 @@ serve(async (req) => {
 
     const webhookSecret = merchant.stripe_webhook_secret
     
-    // Use constructEventAsync for Deno compatibility
+    // 🔥 FIX: Use constructEventAsync instead of constructEvent
     const event = await stripe.webhooks.constructEventAsync(
       body,
       signature,
@@ -85,7 +97,7 @@ serve(async (req) => {
       Stripe.createSubtleCryptoProvider()
     )
 
-    console.log('📧 Verified webhook event type:', event.type)
+    console.log('📧 Webhook event type:', event.type)
 
     switch (event.type) {
       case 'checkout.session.completed':
@@ -135,6 +147,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe:
   try {
     const stripeSubscription = await stripe.subscriptions.retrieve(subscription as string)
 
+    // Convert Unix timestamps to ISO strings safely
+    const startDate = stripeSubscription.current_period_start 
+      ? new Date(stripeSubscription.current_period_start * 1000).toISOString()
+      : new Date().toISOString()
+    
+    const nextRenewalDate = stripeSubscription.current_period_end
+      ? new Date(stripeSubscription.current_period_end * 1000).toISOString()
+      : null
+
+    console.log('📅 Dates:', { startDate, nextRenewalDate })
+
     const { data, error } = await supabase.from('subscribers').insert({
       merchant_id,
       plan_id,
@@ -143,8 +166,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe:
       status: 'active',
       stripe_subscription_id: subscription,
       stripe_customer_id: customer,
-      start_date: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
-      next_renewal_date: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+      start_date: startDate,
+      next_renewal_date: nextRenewalDate,
     }).select()
 
     if (error) {
