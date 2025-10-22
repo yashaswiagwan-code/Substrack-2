@@ -1,28 +1,21 @@
-// src/pages/Subscribers.tsx - COMPLETELY FIXED
+// src/pages/Subscribers.tsx - Subscriber Management Page
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '../components/DashboardLayout'
-import { supabase } from '../lib/supabase'
+import { supabase, Subscriber } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Search, Filter, Download } from 'lucide-react'
 
-// Define proper types
-interface SubscriberWithPlan {
-  id: string
-  customer_name: string
-  customer_email: string
-  status: 'active' | 'cancelled' | 'failed'
-  start_date: string
-  next_renewal_date: string | null
-  last_payment_amount: number | null
-  last_payment_date: string | null
+interface SubscriberWithPlan extends Subscriber {
   plan_name: string
   plan_price: number
 }
 
 export function Subscribers() {
   const { user } = useAuth()
-  const [subscribers, setSubscribers] = useState<SubscriberWithPlan[]>([])
-  const [filteredSubscribers, setFilteredSubscribers] = useState<SubscriberWithPlan[]>([])
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([])
+  const [filteredSubscribers, setFilteredSubscribers] = useState<Subscriber[]>(
+    []
+  )
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -46,7 +39,8 @@ export function Subscribers() {
     try {
       const { data, error } = await supabase
         .from('subscribers')
-        .select(`
+        .select(
+          `
           id,
           customer_name,
           customer_email,
@@ -59,18 +53,18 @@ export function Subscribers() {
             name,
             price
           )
-        `)
+        `
+        )
         .eq('merchant_id', user!.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Transform the data with proper type handling
-      const formatted: SubscriberWithPlan[] = (data || []).map((sub: any) => ({
+      const formatted = data.map((sub: any) => ({
         id: sub.id,
         customer_name: sub.customer_name,
         customer_email: sub.customer_email,
-        status: sub.status as 'active' | 'cancelled' | 'failed',
+        status: sub.status,
         start_date: sub.start_date,
         next_renewal_date: sub.next_renewal_date,
         last_payment_amount: sub.last_payment_amount,
@@ -93,12 +87,13 @@ export function Subscribers() {
 
     // Search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
         (sub) =>
-          sub.customer_name.toLowerCase().includes(query) ||
-          sub.customer_email.toLowerCase().includes(query) ||
-          sub.plan_name.toLowerCase().includes(query)
+          sub.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          sub.customer_email
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          sub.plan_name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
@@ -111,13 +106,13 @@ export function Subscribers() {
     setCurrentPage(1) // Reset to first page when filtering
   }
 
-  const getStatusBadge = (status: 'active' | 'cancelled' | 'failed') => {
+  const getStatusBadge = (status: string) => {
     const badges = {
       active: 'bg-green-100 text-green-800',
       cancelled: 'bg-gray-100 text-gray-800',
       failed: 'bg-red-100 text-red-800',
     }
-    return badges[status]
+    return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800'
   }
 
   const formatDate = (dateString: string | null) => {
@@ -158,7 +153,6 @@ export function Subscribers() {
     a.href = url
     a.download = `subscribers-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
-    window.URL.revokeObjectURL(url)
   }
 
   // Pagination logic
@@ -195,7 +189,7 @@ export function Subscribers() {
                 placeholder='Search subscribers...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className='pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                className='pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500'
               />
               <Search className='w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2' />
             </div>
@@ -220,7 +214,7 @@ export function Subscribers() {
                       }}
                       className={`block w-full text-left px-3 py-2 rounded text-sm ${
                         statusFilter === 'all'
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-indigo-50 text-indigo-600'
                           : 'hover:bg-gray-50'
                       }`}
                     >
@@ -233,7 +227,7 @@ export function Subscribers() {
                       }}
                       className={`block w-full text-left px-3 py-2 rounded text-sm ${
                         statusFilter === 'active'
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-indigo-50 text-indigo-600'
                           : 'hover:bg-gray-50'
                       }`}
                     >
@@ -246,7 +240,7 @@ export function Subscribers() {
                       }}
                       className={`block w-full text-left px-3 py-2 rounded text-sm ${
                         statusFilter === 'cancelled'
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-indigo-50 text-indigo-600'
                           : 'hover:bg-gray-50'
                       }`}
                     >
@@ -259,7 +253,7 @@ export function Subscribers() {
                       }}
                       className={`block w-full text-left px-3 py-2 rounded text-sm ${
                         statusFilter === 'failed'
-                          ? 'bg-blue-50 text-blue-600'
+                          ? 'bg-indigo-50 text-indigo-600'
                           : 'hover:bg-gray-50'
                       }`}
                     >
@@ -284,22 +278,11 @@ export function Subscribers() {
         {/* Table */}
         {loading ? (
           <div className='flex justify-center items-center py-12'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
+            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600'></div>
           </div>
         ) : filteredSubscribers.length === 0 ? (
           <div className='text-center py-12'>
             <p className='text-gray-500'>No subscribers found</p>
-            {searchQuery || statusFilter !== 'all' ? (
-              <button
-                onClick={() => {
-                  setSearchQuery('')
-                  setStatusFilter('all')
-                }}
-                className='mt-2 text-blue-600 hover:text-blue-700 text-sm'
-              >
-                Clear filters
-              </button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -364,7 +347,7 @@ export function Subscribers() {
                         {subscriber.last_payment_amount ? (
                           <div>
                             <div className='font-medium'>
-                              ₹{subscriber.last_payment_amount.toFixed(2)}
+                              ₹{subscriber.last_payment_amount}
                             </div>
                             <div className='text-xs text-gray-500'>
                               {formatDate(subscriber.last_payment_date)}
@@ -416,7 +399,7 @@ export function Subscribers() {
                         onClick={() => goToPage(pageNum)}
                         className={`px-3 py-1 border rounded-md text-sm ${
                           currentPage === pageNum
-                            ? 'bg-blue-50 border-blue-200 text-blue-600'
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
                             : 'hover:bg-gray-100'
                         }`}
                       >

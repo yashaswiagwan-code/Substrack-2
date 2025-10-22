@@ -5,11 +5,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req: Request) => {
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -32,10 +31,7 @@ serve(async (req: Request) => {
     })
 
     // Verify user is authenticated
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
       throw new Error('Unauthorized')
     }
@@ -48,9 +44,7 @@ serve(async (req: Request) => {
       .single()
 
     if (merchantError || !merchant?.stripe_api_key) {
-      throw new Error(
-        'Stripe API key not configured. Please add it in Settings.'
-      )
+      throw new Error('Stripe API key not configured. Please add it in Settings.')
     }
 
     // Initialize Stripe with merchant's key
@@ -62,18 +56,11 @@ serve(async (req: Request) => {
     const body = await req.json()
     const { action } = body
 
-    let result: Record<string, unknown> = {}
+    let result: any = {}
 
     switch (action) {
       case 'create': {
-        const {
-          planId,
-          planName,
-          planDescription,
-          price,
-          currency,
-          billingCycle,
-        } = body
+        const { planId, planName, planDescription, price, currency, billingCycle } = body
 
         // Create product in Stripe
         const product = await stripe.products.create({
@@ -166,18 +153,19 @@ serve(async (req: Request) => {
         throw new Error('Invalid action')
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error occurred'
+    return new Response(
+      JSON.stringify(result),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
+  } catch (error: any) {
     console.error('Error managing Stripe plan:', error)
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: errorMessage,
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
