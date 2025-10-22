@@ -1,8 +1,7 @@
-// src/pages/Subscribe.tsx - Public subscription page
+// src/pages/Subscribe.tsx - FIXED VERSION with proper metadata
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { StripeService } from '../services/stripeService';
 import { Loader2, Check } from 'lucide-react';
 
 export function Subscribe() {
@@ -34,6 +33,7 @@ export function Subscribe() {
         return;
       }
 
+      console.log('✅ Plan loaded:', planData);
       setPlan(planData);
       setMerchant((planData as any).merchants);
     } catch (err: any) {
@@ -48,7 +48,12 @@ export function Subscribe() {
     e.preventDefault();
     
     if (!plan?.stripe_price_id) {
-      setError('Plan is not configured for payments');
+      setError('Plan is not configured for payments. Please contact support.');
+      return;
+    }
+
+    if (!merchant?.stripe_publishable_key) {
+      setError('Merchant payment system is not configured. Please contact support.');
       return;
     }
 
@@ -56,20 +61,41 @@ export function Subscribe() {
     setError('');
 
     try {
-      const stripeService = new StripeService();
-      const checkoutUrl = await stripeService.createSubscriptionCheckout(
-        plan.stripe_price_id,
+      console.log('🚀 Creating checkout with:', {
+        priceId: plan.stripe_price_id,
         customerEmail,
         customerName,
-        plan.id,
-        merchant.id
-      );
+        planId: plan.id,
+        merchantId: merchant.id,
+      });
+
+      // Call Supabase Edge Function to create checkout
+      const { data, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
+        body: {
+          priceId: plan.stripe_price_id,
+          customerEmail,
+          customerName,
+          planId: plan.id,
+          merchantId: merchant.id,
+        },
+      });
+
+      if (checkoutError) {
+        console.error('❌ Checkout error:', checkoutError);
+        throw checkoutError;
+      }
+
+      if (!data?.url) {
+        throw new Error('No checkout URL returned from server');
+      }
+
+      console.log('✅ Checkout URL received:', data.url);
 
       // Redirect to Stripe Checkout
-      window.location.href = checkoutUrl;
+      window.location.href = data.url;
     } catch (err: any) {
-      console.error('Error creating checkout:', err);
-      setError('Failed to initiate payment. Please try again.');
+      console.error('💥 Error creating checkout:', err);
+      setError(err.message || 'Failed to initiate payment. Please try again.');
       setProcessing(false);
     }
   };

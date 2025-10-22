@@ -1,4 +1,4 @@
-// supabase/functions/stripe-webhook/index.ts
+// supabase/functions/stripe-webhook/index.ts - COMPLETE FIXED VERSION
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -18,11 +18,37 @@ serve(async (req) => {
   try {
     const body = await req.text()
     const parsedBody = JSON.parse(body)
-    const merchantId = parsedBody.data?.object?.metadata?.merchant_id
+    
+    // Try to get merchant_id from metadata (works for checkout.session.completed)
+    let merchantId = parsedBody.data?.object?.metadata?.merchant_id
+    
+    console.log('📧 Event type:', parsedBody.type)
+    console.log('🔍 Merchant ID from metadata:', merchantId)
+
+    // If no merchant_id in metadata, try to find it from subscription_id
+    // This handles invoice events that don't carry metadata
+    if (!merchantId) {
+      const subscriptionId = parsedBody.data?.object?.subscription
+      console.log('🔍 Looking up merchant from subscription:', subscriptionId)
+      
+      if (subscriptionId) {
+        const { data: subscriber } = await supabase
+          .from('subscribers')
+          .select('merchant_id')
+          .eq('stripe_subscription_id', subscriptionId)
+          .single()
+        
+        if (subscriber) {
+          merchantId = subscriber.merchant_id
+          console.log('✅ Found merchant from subscriber:', merchantId)
+        }
+      }
+    }
     
     if (!merchantId) {
-      console.error('❌ No merchant_id in webhook metadata')
-      return new Response('No merchant_id', { status: 400 })
+      console.error('❌ No merchant_id found in metadata or subscriber lookup')
+      console.error('📦 Event data:', JSON.stringify(parsedBody.data?.object, null, 2))
+      return new Response('No merchant_id found', { status: 400 })
     }
 
     console.log('✅ Processing webhook for merchant:', merchantId)
@@ -44,14 +70,22 @@ serve(async (req) => {
     }
 
     const stripe = new Stripe(merchant.stripe_api_key, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2024-11-20.acacia',
       httpClient: Stripe.createFetchHttpClient(),
     })
 
     const webhookSecret = merchant.stripe_webhook_secret
-    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    
+    // Use constructEventAsync for Deno compatibility
+    const event = await stripe.webhooks.constructEventAsync(
+      body,
+      signature,
+      webhookSecret,
+      undefined,
+      Stripe.createSubtleCryptoProvider()
+    )
 
-    console.log('📧 Webhook event type:', event.type)
+    console.log('📧 Verified webhook event type:', event.type)
 
     switch (event.type) {
       case 'checkout.session.completed':
