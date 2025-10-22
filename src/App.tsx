@@ -12,8 +12,8 @@ import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCancelled } from './pages/PaymentCancelled';
 import { SubscriptionSuccess } from './pages/SubscriptionSuccess';
 import { SubscriptionCancelled } from './pages/SubscriptionCancelled';
-import { Subscribers } from './pages/Subscribers';  // Management page (protected)
-import { Subscribe } from './pages/Subscribe';      // Public subscription page
+import { Subscribers } from './pages/Subscribers';
+import { Subscribe } from './pages/Subscribe';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -91,7 +91,7 @@ function AppRoutes() {
         path="/subscribers"
         element={
           <ProtectedRoute>
-            <Subscribe />
+            <Subscribers />
           </ProtectedRoute>
         }
       />
@@ -133,16 +133,6 @@ function AppRoutes() {
       <Route path="/payment-cancelled" element={<PaymentCancelled />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-cancelled" element={<SubscriptionCancelled />} />
-      {/* Management pages */}
-      <Route
-        path="/subscribers" // Management page      
-        element={  
-          <ProtectedRoute>
-            <Subscribers />
-          </ProtectedRoute>
-        }
-      />
-
     </Routes>
   );
 }
