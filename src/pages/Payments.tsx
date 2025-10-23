@@ -146,43 +146,57 @@ export function Payments() {
   }
 
   const downloadInvoice = async (transaction: PaymentTransaction) => {
-    // Generate simple invoice data
-    const invoiceData = {
-      invoiceId: generateInvoiceId(transaction.id),
-      date: formatDate(transaction.payment_date),
-      customer: transaction.subscriber.customer_name,
-      email: transaction.subscriber.customer_email,
-      plan: transaction.plan.name,
-      amount: transaction.amount,
-      status: transaction.status,
+    try {
+      // Fetch merchant details from Supabase
+      // Adjust the table name and columns based on your schema
+      const { data: merchantData, error: merchantError } = await supabase
+        .from('merchants')
+        .select('business_name, email, phone, address, gst_number')
+        .eq('id', user!.id)
+        .single()
+
+      if (merchantError) {
+        console.error('Error fetching merchant data:', merchantError)
+        // Continue with default values if merchant data fetch fails
+      }
+
+      // Prepare invoice data for PDF generator
+      const invoiceData = {
+        invoiceId: generateInvoiceId(transaction.id),
+        invoiceDate: formatInvoiceDate(transaction.payment_date),
+        dueDate: formatInvoiceDate(transaction.payment_date),
+        
+        // Merchant Info - use fetched data or defaults
+        merchantName: merchantData?.business_name || 'Your Business Name',
+        merchantEmail: merchantData?.email || user?.email || 'contact@yourbusiness.com',
+        merchantAddress: merchantData?.address || undefined,
+        merchantGST: merchantData?.gst_number || undefined,
+        merchantPhone: merchantData?.phone || undefined,
+        
+        // Customer Info
+        customerName: transaction.subscriber.customer_name,
+        customerEmail: transaction.subscriber.customer_email,
+        
+        // Payment Info
+        planName: transaction.plan.name,
+        planDescription: 'Subscription Service',
+        amount: transaction.amount,
+        currency: '$',
+        status: transaction.status,
+        
+        // Additional Info
+        paymentMethod: 'Stripe',
+        transactionId: transaction.stripe_payment_id || transaction.id,
+        billingCycle: 'Monthly',
+      }
+
+      // Generate and download PDF
+      generateInvoicePDF(invoiceData)
+      
+    } catch (error) {
+      console.error('Error generating invoice:', error)
+      alert('Failed to generate invoice. Please try again.')
     }
-
-    // Create a simple text invoice (you can replace this with PDF generation)
-    const invoiceText = `
-INVOICE
------------------
-Invoice ID: ${invoiceData.invoiceId}
-Date: ${invoiceData.date}
-
-Bill To:
-${invoiceData.customer}
-${invoiceData.email}
-
-Description: ${invoiceData.plan}
-Amount: $${invoiceData.amount.toFixed(2)}
-Status: ${invoiceData.status.toUpperCase()}
-
-Thank you for your business!
-    `
-
-    // Download as text file (replace with PDF library for production)
-    const blob = new Blob([invoiceText], { type: 'text/plain' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${invoiceData.invoiceId}.txt`
-    a.click()
-    window.URL.revokeObjectURL(url)
   }
 
   const exportToCSV = () => {
