@@ -80,6 +80,14 @@ export function Settings() {
     }
   };
 
+/*************  ✨ Windsurf Command ⭐  *************/
+/**
+ * Validate a Stripe API key (secret or publishable)
+ * @param {string} key - The Stripe API key to validate
+ * @param {'secret'|'publishable'} type - The type of Stripe API key to validate
+ * @returns {boolean} true if the key is valid, false otherwise
+ */
+/*******  45ddbb3e-182c-4cd5-bc0f-1bd08126065a  *******/
   const validateStripeKey = (key: string, type: 'secret' | 'publishable'): boolean => {
     if (!key) return false;
     
@@ -448,8 +456,8 @@ export function Settings() {
                         <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                           <li>Copy the webhook URL above</li>
                           <li>Go to Stripe Dashboard → Webhooks</li>
-                          <li>Click "Add endpoint" and paste the URL</li>
-                          <li>Select these events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
+                          <li>Click "Add Destination" and paste the URL</li>
+                          <li>Select these events: checkout.session.completed, customer.subscription.created, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
                           <li>Copy the "Signing secret" (starts with whsec_)</li>
                           <li>Paste it in the field below</li>
                         </ol>
