@@ -195,11 +195,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe:
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log('🔄 Processing customer.subscription.updated')
   
+  // Safely convert timestamp
+  const nextRenewalDate = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : null
+  
   const { error } = await supabase
     .from('subscribers')
     .update({
       status: subscription.status === 'active' ? 'active' : subscription.status,
-      next_renewal_date: new Date(subscription.current_period_end * 1000).toISOString(),
+      next_renewal_date: nextRenewalDate,
     })
     .eq('stripe_subscription_id', subscription.id)
 
@@ -249,68 +254,106 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
   console.log('💰 Processing invoice.payment_succeeded')
+  console.log('📦 Invoice ID:', invoice.id)
+  console.log('📦 Invoice billing_reason:', invoice.billing_reason)
   
-  const subscriptionId = typeof invoice.subscription === 'string' 
+  // Try to get subscription ID from different locations
+  let subscriptionId = typeof invoice.subscription === 'string' 
     ? invoice.subscription 
     : invoice.subscription?.id
 
+  // Also check in lines if not found
+  if (!subscriptionId && invoice.lines?.data?.[0]) {
+    const lineItem = invoice.lines.data[0] as any
+    subscriptionId = lineItem.subscription || lineItem.parent?.subscription_item_details?.subscription
+  }
+
+  console.log('🔍 Subscription ID:', subscriptionId)
+
   if (!subscriptionId) {
-    console.error('❌ No subscription ID in invoice')
+    // This is not an error - some invoices are not subscription-related
+    console.log('ℹ️ Invoice is not related to a subscription (possibly one-time payment), skipping')
     return
   }
 
-  const { data: subscriber, error: fetchError } = await supabase
+  // First, let's check if subscriber exists at all (without .single())
+  const { data: subscribers, error: fetchError } = await supabase
     .from('subscribers')
     .select('id, merchant_id, plan_id')
     .eq('stripe_subscription_id', subscriptionId)
-    .single()
 
   if (fetchError) {
-    console.error('❌ Error fetching subscriber:', fetchError)
+    console.error('❌ Error fetching subscriber for subscription:', subscriptionId, fetchError)
     return
   }
 
-  if (subscriber) {
-    const { error: updateError } = await supabase
-      .from('subscribers')
-      .update({
-        status: 'active',
-        last_payment_date: new Date().toISOString(),
-        last_payment_amount: (invoice.amount_paid || 0) / 100,
-      })
-      .eq('id', subscriber.id)
+  console.log('🔍 Found subscribers:', subscribers?.length || 0)
 
-    if (updateError) {
-      console.error('❌ Error updating subscriber payment:', updateError)
-    }
+  if (!subscribers || subscribers.length === 0) {
+    console.log('⚠️ No subscriber found for subscription:', subscriptionId)
+    return
+  }
 
-    const { error: txError } = await supabase.from('payment_transactions').insert({
-      merchant_id: subscriber.merchant_id,
-      subscriber_id: subscriber.id,
-      plan_id: subscriber.plan_id,
-      amount: (invoice.amount_paid || 0) / 100,
-      status: 'success',
-      stripe_payment_id: invoice.id,
-      payment_date: new Date().toISOString(),
+  if (subscribers.length > 1) {
+    console.error('⚠️ Multiple subscribers found for subscription:', subscriptionId, '- using first one')
+  }
+
+  const subscriber = subscribers[0]
+  console.log('✅ Found subscriber:', subscriber.id)
+
+  // Update subscriber with payment info
+  const { error: updateError } = await supabase
+    .from('subscribers')
+    .update({
+      status: 'active',
+      last_payment_date: new Date().toISOString(),
+      last_payment_amount: (invoice.amount_paid || 0) / 100,
     })
+    .eq('id', subscriber.id)
 
-    if (txError) {
-      console.error('❌ Error creating transaction:', txError)
-    } else {
-      console.log('✅ Payment recorded successfully')
-    }
+  if (updateError) {
+    console.error('❌ Error updating subscriber payment:', updateError)
+  } else {
+    console.log('✅ Subscriber payment info updated successfully')
+  }
+
+  // Create payment transaction record
+  const { error: txError } = await supabase.from('payment_transactions').insert({
+    merchant_id: subscriber.merchant_id,
+    subscriber_id: subscriber.id,
+    plan_id: subscriber.plan_id,
+    amount: (invoice.amount_paid || 0) / 100,
+    status: 'success',
+    stripe_payment_id: invoice.id,
+    payment_date: new Date().toISOString(),
+  })
+
+  if (txError) {
+    console.error('❌ Error creating transaction:', txError)
+  } else {
+    console.log('✅ Payment transaction recorded successfully')
   }
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
   console.log('❌ Processing invoice.payment_failed')
+  console.log('📦 Invoice ID:', invoice.id)
   
-  const subscriptionId = typeof invoice.subscription === 'string'
+  // Try to get subscription ID from different locations
+  let subscriptionId = typeof invoice.subscription === 'string'
     ? invoice.subscription
     : invoice.subscription?.id
 
+  // Also check in lines if not found
+  if (!subscriptionId && invoice.lines?.data?.[0]) {
+    const lineItem = invoice.lines.data[0] as any
+    subscriptionId = lineItem.subscription || lineItem.parent?.subscription_item_details?.subscription
+  }
+
+  console.log('🔍 Subscription ID:', subscriptionId)
+
   if (!subscriptionId) {
-    console.error('❌ No subscription ID in invoice')
+    console.log('ℹ️ Invoice is not related to a subscription, skipping')
     return
   }
 
@@ -321,34 +364,43 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     .single()
 
   if (fetchError) {
-    console.error('❌ Error fetching subscriber:', fetchError)
+    console.error('❌ Error fetching subscriber for subscription:', subscriptionId, fetchError)
     return
   }
 
-  if (subscriber) {
-    const { error: updateError } = await supabase
-      .from('subscribers')
-      .update({ status: 'failed' })
-      .eq('id', subscriber.id)
+  if (!subscriber) {
+    console.log('⚠️ No subscriber found for subscription:', subscriptionId)
+    return
+  }
 
-    if (updateError) {
-      console.error('❌ Error updating failed subscriber:', updateError)
-    }
+  console.log('✅ Found subscriber:', subscriber.id)
 
-    const { error: txError } = await supabase.from('payment_transactions').insert({
-      merchant_id: subscriber.merchant_id,
-      subscriber_id: subscriber.id,
-      plan_id: subscriber.plan_id,
-      amount: (invoice.amount_due || 0) / 100,
-      status: 'failed',
-      stripe_payment_id: invoice.id,
-      payment_date: new Date().toISOString(),
-    })
+  // Update subscriber status to failed
+  const { error: updateError } = await supabase
+    .from('subscribers')
+    .update({ status: 'failed' })
+    .eq('id', subscriber.id)
 
-    if (txError) {
-      console.error('❌ Error creating failed transaction:', txError)
-    } else {
-      console.log('✅ Failed payment recorded successfully')
-    }
+  if (updateError) {
+    console.error('❌ Error updating failed subscriber:', updateError)
+  } else {
+    console.log('✅ Subscriber status updated to failed')
+  }
+
+  // Create failed payment transaction record
+  const { error: txError } = await supabase.from('payment_transactions').insert({
+    merchant_id: subscriber.merchant_id,
+    subscriber_id: subscriber.id,
+    plan_id: subscriber.plan_id,
+    amount: (invoice.amount_due || 0) / 100,
+    status: 'failed',
+    stripe_payment_id: invoice.id,
+    payment_date: new Date().toISOString(),
+  })
+
+  if (txError) {
+    console.error('❌ Error creating failed transaction:', txError)
+  } else {
+    console.log('✅ Failed payment transaction recorded')
   }
 }
