@@ -1,8 +1,9 @@
+// src/pages/Settings.tsx - Updated with merged Business & Profile
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, RefreshCw, Check, X, Copy } from 'lucide-react';
+import { Eye, EyeOff, RefreshCw, Check, X, Copy, Upload, Image as ImageIcon } from 'lucide-react';
 
 export function Settings() {
   const { user, merchant, refreshMerchant } = useAuth();
@@ -15,12 +16,17 @@ export function Settings() {
   const [testingStripe, setTestingStripe] = useState(false);
   const [stripeTestResult, setStripeTestResult] = useState<'success' | 'error' | null>(null);
   const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const [businessInfo, setBusinessInfo] = useState({
+    full_name: '',
     business_name: '',
+    email: '',
+    business_address: '',
     gst_number: '',
-    bank_account: '',
-    bank_ifsc: '',
+    logo_url: '',
   });
 
   const [stripeInfo, setStripeInfo] = useState({
@@ -29,33 +35,75 @@ export function Settings() {
     stripe_webhook_secret: '',
   });
 
-  const [profileInfo, setProfileInfo] = useState({
-    full_name: '',
-    email: '',
-  });
-
-  // Webhook URL - dynamically constructed
   const webhookUrl = `${window.location.origin.replace(window.location.hostname, 'niisdiotuzvydotoaurt.supabase.co')}/functions/v1/stripe-webhook`;
 
   useEffect(() => {
     if (merchant) {
       setBusinessInfo({
+        full_name: merchant.full_name || '',
         business_name: merchant.business_name || '',
+        email: merchant.email || '',
+        business_address: merchant.bank_account || '', // Using bank_account as address placeholder
         gst_number: merchant.gst_number || '',
-        bank_account: merchant.bank_account || '',
-        bank_ifsc: merchant.bank_ifsc || '',
+        logo_url: merchant.logo_url || '',
       });
       setStripeInfo({
         stripe_secret_key: merchant.stripe_api_key || '',
         stripe_publishable_key: merchant.stripe_publishable_key || '',
         stripe_webhook_secret: (merchant as any).stripe_webhook_secret || '',
       });
-      setProfileInfo({
-        full_name: merchant.full_name || '',
-        email: merchant.email || '',
-      });
+      setLogoPreview(merchant.logo_url || null);
     }
   }, [merchant]);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File size should be less than 2MB');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadLogo = async (): Promise<string | null> => {
+    if (!logoFile) return businessInfo.logo_url || null;
+
+    setUploadingLogo(true);
+    try {
+      const fileExt = logoFile.name.split('.').pop();
+      const fileName = `${user!.id}-${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('merchant-assets')
+        .upload(filePath, logoFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('merchant-assets')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      alert('Failed to upload logo. Please try again.');
+      return null;
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   const handleBusinessInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,15 +111,25 @@ export function Settings() {
     setSuccessMessage('');
 
     try {
+      // Upload logo if changed
+      const logoUrl = await uploadLogo();
+
       const { error } = await supabase
         .from('merchants')
-        .update(businessInfo)
+        .update({
+          full_name: businessInfo.full_name,
+          business_name: businessInfo.business_name,
+          bank_account: businessInfo.business_address, // Store address in bank_account field
+          gst_number: businessInfo.gst_number,
+          logo_url: logoUrl,
+        })
         .eq('id', user!.id);
 
       if (error) throw error;
 
       await refreshMerchant();
       setSuccessMessage('Business information updated successfully!');
+      setLogoFile(null);
     } catch (error: any) {
       console.error('Error updating business info:', error);
       alert('Failed to update business information');
@@ -80,14 +138,6 @@ export function Settings() {
     }
   };
 
-/*************  ✨ Windsurf Command ⭐  *************/
-/**
- * Validate a Stripe API key (secret or publishable)
- * @param {string} key - The Stripe API key to validate
- * @param {'secret'|'publishable'} type - The type of Stripe API key to validate
- * @returns {boolean} true if the key is valid, false otherwise
- */
-/*******  45ddbb3e-182c-4cd5-bc0f-1bd08126065a  *******/
   const validateStripeKey = (key: string, type: 'secret' | 'publishable'): boolean => {
     if (!key) return false;
     
@@ -135,7 +185,6 @@ export function Settings() {
     setLoading(true);
     setSuccessMessage('');
 
-    // Validate keys
     if (!validateStripeKey(stripeInfo.stripe_secret_key, 'secret')) {
       alert('Invalid Stripe Secret Key. Must start with sk_test_ or sk_live_');
       setLoading(false);
@@ -171,29 +220,6 @@ export function Settings() {
     }
   };
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setSuccessMessage('');
-
-    try {
-      const { error } = await supabase
-        .from('merchants')
-        .update({ full_name: profileInfo.full_name })
-        .eq('id', user!.id);
-
-      if (error) throw error;
-
-      await refreshMerchant();
-      setSuccessMessage('Profile updated successfully!');
-    } catch (error: any) {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-4xl">
@@ -214,7 +240,7 @@ export function Settings() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Business Information
+                Business Profile
               </button>
               <button
                 onClick={() => setActiveTab('stripe')}
@@ -226,16 +252,6 @@ export function Settings() {
               >
                 Stripe Integration
               </button>
-              <button
-                onClick={() => setActiveTab('profile')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'profile'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Profile
-              </button>
             </nav>
           </div>
 
@@ -243,22 +259,101 @@ export function Settings() {
             {activeTab === 'business' && (
               <form onSubmit={handleBusinessInfoSubmit} className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Business Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Business Information</h3>
+                  
+                  {/* Logo Upload */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Logo
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <div className="h-24 w-24 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
+                        {logoPreview ? (
+                          <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-10 w-10 text-gray-400" />
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="logo-upload"
+                          className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Logo
+                        </label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoChange}
+                          className="hidden"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 2MB</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={businessInfo.full_name}
+                          onChange={(e) =>
+                            setBusinessInfo({ ...businessInfo, full_name: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Business Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={businessInfo.business_name}
+                          onChange={(e) =>
+                            setBusinessInfo({ ...businessInfo, business_name: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Business Name
+                        Business Email *
                       </label>
                       <input
-                        type="text"
-                        value={businessInfo.business_name}
+                        type="email"
+                        value={businessInfo.email}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Business Address
+                      </label>
+                      <textarea
+                        value={businessInfo.business_address}
                         onChange={(e) =>
-                          setBusinessInfo({ ...businessInfo, business_name: e.target.value })
+                          setBusinessInfo({ ...businessInfo, business_address: e.target.value })
                         }
+                        rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
+                        placeholder="Enter your complete business address"
                       />
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         GST Number
@@ -270,46 +365,29 @@ export function Settings() {
                           setBusinessInfo({ ...businessInfo, gst_number: e.target.value })
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Optional"
+                        placeholder="e.g., 22AAAAA0000A1Z5"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Bank Account Number
-                      </label>
-                      <input
-                        type="text"
-                        value={businessInfo.bank_account}
-                        onChange={(e) =>
-                          setBusinessInfo({ ...businessInfo, bank_account: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Bank IFSC Code
-                      </label>
-                      <input
-                        type="text"
-                        value={businessInfo.bank_ifsc}
-                        onChange={(e) =>
-                          setBusinessInfo({ ...businessInfo, bank_ifsc: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
+                      <p className="text-xs text-gray-500 mt-1">Optional - for Indian businesses</p>
                     </div>
                   </div>
                 </div>
+                
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    disabled={loading || uploadingLogo}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 flex items-center"
                   >
-                    {loading ? 'Saving...' : 'Save Changes'}
+                    {uploadingLogo ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : loading ? (
+                      'Saving...'
+                    ) : (
+                      'Save Changes'
+                    )}
                   </button>
                 </div>
               </form>
@@ -402,7 +480,6 @@ export function Settings() {
                       </p>
                     </div>
 
-                    {/* Webhook Configuration Section */}
                     <div className="border-t pt-4 mt-6">
                       <h4 className="text-md font-semibold text-gray-800 mb-3">Webhook Configuration</h4>
                       <p className="text-sm text-gray-600 mb-4">
@@ -456,8 +533,8 @@ export function Settings() {
                         <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                           <li>Copy the webhook URL above</li>
                           <li>Go to Stripe Dashboard → Webhooks</li>
-                          <li>Click "Add Destination" and paste the URL</li>
-                          <li>Select these events: checkout.session.completed, customer.subscription.created, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
+                          <li>Click "Add endpoint" and paste the URL</li>
+                          <li>Select events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
                           <li>Copy the "Signing secret" (starts with whsec_)</li>
                           <li>Paste it in the field below</li>
                         </ol>
@@ -543,51 +620,6 @@ export function Settings() {
                     className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                   >
                     {loading ? 'Saving...' : 'Save API Keys'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {activeTab === 'profile' && (
-              <form onSubmit={handleProfileSubmit} className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Profile Settings</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        value={profileInfo.full_name}
-                        onChange={(e) =>
-                          setProfileInfo({ ...profileInfo, full_name: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={profileInfo.email}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    {loading ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

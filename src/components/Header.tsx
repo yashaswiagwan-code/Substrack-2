@@ -40,8 +40,18 @@ export function Header({ title }: HeaderProps) {
           onClick={() => setDropdownOpen(!dropdownOpen)}
           className="flex items-center space-x-2 focus:outline-none"
         >
-          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
-            {merchant && getInitials(merchant.full_name)}
+          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+            {merchant?.logo_url ? (
+              <img 
+                src={merchant.logo_url} 
+                alt={merchant.business_name || 'Business logo'} 
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-gray-600 font-semibold">
+                {merchant && getInitials(merchant.full_name)}
+              </span>
+            )}
           </div>
           <div className="hidden md:block text-right">
             <div className="font-semibold text-sm text-gray-700">{merchant?.full_name}</div>

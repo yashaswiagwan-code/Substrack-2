@@ -6,7 +6,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Plans } from './pages/Plans';
 import { Settings } from './pages/Settings';
 import { Payments } from './pages/Payments';
-import { Analytics } from './pages/Analytics';
 import { Notifications } from './pages/Notifications';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCancelled } from './pages/PaymentCancelled';
@@ -100,14 +99,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Payments />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
           </ProtectedRoute>
         }
       />

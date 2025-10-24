@@ -1,4 +1,4 @@
-import { Home, FileText, Users, Receipt, PieChart, Bell, Settings } from 'lucide-react';
+import { Home, FileText, Users, Receipt, Bell, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const navigation = [
@@ -6,7 +6,6 @@ const navigation = [
   { name: 'Plans', href: '/plans', icon: FileText },
   { name: 'Subscribers', href: '/subscribers', icon: Users },
   { name: 'Payments & Invoices', href: '/payments', icon: Receipt },
-  { name: 'Analytics', href: '/analytics', icon: PieChart },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
