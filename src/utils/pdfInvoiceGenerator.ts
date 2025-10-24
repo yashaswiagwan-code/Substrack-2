@@ -1,4 +1,3 @@
-// src/utils/pdfInvoiceGenerator.ts
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -13,6 +12,7 @@ interface InvoiceData {
   merchantAddress?: string
   merchantGST?: string
   merchantPhone?: string
+  merchantLogo?: string
 
   // Customer Info
   customerName: string
@@ -22,7 +22,7 @@ interface InvoiceData {
   planName: string
   planDescription?: string
   amount: number
-  currency: string
+  currency: string // Note: currency (e.g., 'INR') isn't used for display, but good to have
   status: string
 
   // Additional Info
@@ -31,7 +31,7 @@ interface InvoiceData {
   billingCycle?: string
 }
 
-export const generateInvoicePDF = (data: InvoiceData) => {
+export const generateInvoicePDF = async (data: InvoiceData) => {
   const doc = new jsPDF()
 
   // Colors
@@ -45,41 +45,67 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // HEADER SECTION
   // ===============================
 
-  // Company Logo/Name (Left)
+  // Check if logo exists and load it
+  if (data.merchantLogo) {
+    try {
+      const img = new Image()
+      img.crossOrigin = 'Anonymous'
+      img.src = data.merchantLogo
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        setTimeout(reject, 5000) // 5 second timeout
+      }).then(() => {
+        // Add logo (30x30 size)
+        doc.addImage(img, 'PNG', 20, currentY - 5, 30, 30)
+      }).catch(() => {
+        console.log('Logo loading failed, continuing without logo')
+      })
+    } catch (error) {
+      console.log('Error loading logo:', error)
+    }
+  }
+
+  // Company Name (adjusted position if logo exists)
+  const nameX = data.merchantLogo ? 55 : 20
   doc.setFontSize(24)
   doc.setTextColor(...primaryColor)
   doc.setFont('helvetica', 'bold')
-  doc.text(data.merchantName, 20, currentY)
+  doc.text(data.merchantName, nameX, currentY + 5)
 
   // Invoice Title (Right)
   doc.setFontSize(28)
   doc.setTextColor(...textColor)
-  doc.text('INVOICE', 200, currentY, { align: 'right' })
+  doc.text('INVOICE', 190, currentY + 5, { align: 'right' })
 
-  currentY += 10
+  currentY += (data.merchantLogo ? 35 : 15)
 
   // Merchant Contact Info
   doc.setFontSize(10)
   doc.setTextColor(100, 116, 139) // Gray-500
   doc.setFont('helvetica', 'normal')
   doc.text(data.merchantEmail, 20, currentY)
+  currentY += 5
 
   if (data.merchantPhone) {
-    currentY += 5
     doc.text(data.merchantPhone, 20, currentY)
+    currentY += 5
   }
 
   if (data.merchantAddress) {
-    currentY += 5
-    doc.text(data.merchantAddress, 20, currentY)
+    // Handle multi-line address
+    const addressLines = doc.splitTextToSize(data.merchantAddress, 80)
+    doc.text(addressLines, 20, currentY)
+    currentY += (addressLines.length * 5)
   }
 
   if (data.merchantGST) {
-    currentY += 5
     doc.text(`GST: ${data.merchantGST}`, 20, currentY)
+    currentY += 5
   }
 
-  currentY = 45 // Reset for next section
+  currentY = Math.max(currentY, 60) // Ensure minimum spacing
 
   // Horizontal Line
   doc.setDrawColor(...lightGray)
@@ -92,26 +118,28 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // INVOICE DETAILS
   // ===============================
 
+  const detailsStartY = currentY
+
   // Left Column: Invoice Info
   doc.setFontSize(10)
   doc.setTextColor(...textColor)
   doc.setFont('helvetica', 'bold')
   doc.text('Invoice Number:', 20, currentY)
   doc.setFont('helvetica', 'normal')
-  doc.text(data.invoiceId, 55, currentY)
+  doc.text(data.invoiceId, 60, currentY)
 
   currentY += 6
   doc.setFont('helvetica', 'bold')
   doc.text('Invoice Date:', 20, currentY)
   doc.setFont('helvetica', 'normal')
-  doc.text(data.invoiceDate, 55, currentY)
+  doc.text(data.invoiceDate, 60, currentY)
 
   if (data.dueDate) {
     currentY += 6
     doc.setFont('helvetica', 'bold')
     doc.text('Due Date:', 20, currentY)
     doc.setFont('helvetica', 'normal')
-    doc.text(data.dueDate, 55, currentY)
+    doc.text(data.dueDate, 60, currentY)
   }
 
   currentY += 6
@@ -122,13 +150,13 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // Status badge
   if (data.status === 'success') {
     doc.setTextColor(22, 163, 74) // Green
-    doc.text('PAID', 55, currentY)
+    doc.text('PAID', 60, currentY)
   } else if (data.status === 'failed') {
     doc.setTextColor(220, 38, 38) // Red
-    doc.text('FAILED', 55, currentY)
+    doc.text('FAILED', 60, currentY)
   } else {
     doc.setTextColor(234, 179, 8) // Yellow
-    doc.text('PENDING', 55, currentY)
+    doc.text('PENDING', 60, currentY)
   }
 
   // Reset text color
@@ -136,7 +164,7 @@ export const generateInvoicePDF = (data: InvoiceData) => {
 
   // Right Column: Customer Info
   const rightX = 120
-  let rightY = currentY - 18
+  let rightY = detailsStartY
 
   doc.setFont('helvetica', 'bold')
   doc.text('Bill To:', rightX, rightY)
@@ -152,27 +180,37 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   doc.setTextColor(100, 116, 139)
   doc.text(data.customerEmail, rightX, rightY)
 
-  currentY += 15
+  currentY = Math.max(currentY, rightY) + 15
 
   // ===============================
-  // ITEMS TABLE
+  // ITEMS TABLE WITH GST CALCULATION
   // ===============================
 
   doc.setTextColor(...textColor)
 
+  // Calculate amounts (18% GST is included in total amount)
+  const totalAmount = data.amount
+  const baseAmount = totalAmount / 1.18 // Amount before GST
+  const gstAmount = totalAmount - baseAmount // GST amount (18%)
+  // const cgst = gstAmount / 2 // CGST (9%) -- No longer needed
+  // const sgst = gstAmount / 2 // SGST (9%) -- No longer needed
+
+  // FIX 1: Replaced '₹' with 'INR'. 
+  // The '₹' symbol is not in the default 'helvetica' font and was
+  // causing the '¹' symbol and bad spacing. 'INR' is web-safe.
   const tableData = [
     [
       data.planName,
       data.planDescription || data.billingCycle || 'Subscription',
       '1',
-      `${data.currency} ${data.amount.toFixed(2)}`,
-      `${data.currency} ${data.amount.toFixed(2)}`,
+      `INR ${baseAmount.toFixed(2)}`,
+      `INR ${baseAmount.toFixed(2)}`,
     ],
   ]
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Description', 'Details', 'Qty', 'Unit Price', 'Total']],
+    head: [['Description', 'Details', 'Qty', 'Unit Price', 'Amount']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -185,12 +223,15 @@ export const generateInvoicePDF = (data: InvoiceData) => {
       fontSize: 10,
       textColor: textColor,
     },
+    // FIX 2: Adjusted column widths to fit within the 170mm available space.
+    // (Page Width 210mm) - (Left Margin 20mm) - (Right Margin 20mm) = 170mm
+    // Old widths (50+50+20+35+35 = 190mm) were too wide.
     columnStyles: {
-      0: { cellWidth: 50 },
-      1: { cellWidth: 50 },
-      2: { cellWidth: 20, halign: 'center' },
-      3: { cellWidth: 35, halign: 'right' },
-      4: { cellWidth: 35, halign: 'right' },
+      0: { cellWidth: 45 }, // Was 50
+      1: { cellWidth: 45 }, // Was 50
+      2: { cellWidth: 15, halign: 'center' }, // Was 20
+      3: { cellWidth: 32.5, halign: 'right' }, // Was 35
+      4: { cellWidth: 32.5, halign: 'right' }, // Was 35
     },
     margin: { left: 20, right: 20 },
   })
@@ -202,23 +243,22 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // TOTALS SECTION
   // ===============================
 
-  const totalsX = 130
+  const totalsX = 125
   let totalsY = finalY
 
   // Subtotal
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text('Subtotal:', totalsX, totalsY)
-  doc.text(`${data.currency} ${data.amount.toFixed(2)}`, 190, totalsY, {
-    align: 'right',
-  })
+  // FIX 1 (cont.): Using 'INR'
+  doc.text(`INR ${baseAmount.toFixed(2)}`, 190, totalsY, { align: 'right' })
 
   totalsY += 6
 
-  // Tax (if applicable) - you can add tax calculation here
-  // doc.text('Tax (0%):', totalsX, totalsY);
-  // doc.text(`${data.currency} 0.00`, 190, totalsY, { align: 'right' });
-  // totalsY += 6;
+  // FIX 3: Replaced CGST/SGST with a single "Tax (18%)" line
+  doc.text('Tax (18%):', totalsX, totalsY)
+  doc.text(`INR ${gstAmount.toFixed(2)}`, 190, totalsY, { align: 'right' })
+  totalsY += 6
 
   // Total Line
   doc.setDrawColor(...lightGray)
@@ -228,11 +268,10 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // Total Amount
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.text('Total:', totalsX, totalsY)
+  doc.text('Total Amount:', totalsX, totalsY)
   doc.setTextColor(...primaryColor)
-  doc.text(`${data.currency} ${data.amount.toFixed(2)}`, 190, totalsY, {
-    align: 'right',
-  })
+  // FIX 1 (cont.): Using 'INR'
+  doc.text(`INR ${totalAmount.toFixed(2)}`, 190, totalsY, { align: 'right' })
 
   doc.setTextColor(...textColor)
 
@@ -241,7 +280,14 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // ===============================
 
   if (data.transactionId || data.paymentMethod) {
-    totalsY += 15
+    // Check if totals block is too low, add new page if needed
+    if (totalsY > 240) {
+        doc.addPage();
+        totalsY = 20; // Reset Y for new page
+    } else {
+        totalsY += 15;
+    }
+      
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text('Payment Information:', 20, totalsY)
@@ -263,16 +309,17 @@ export const generateInvoicePDF = (data: InvoiceData) => {
   // FOOTER
   // ===============================
 
-  const footerY = 270
+  // Position footer at the bottom of the *current* page
+  const pageHeight = doc.internal.pageSize.height || doc.internal.pageSize.getHeight()
+  const footerY = pageHeight - 20 // 20mm from bottom
+
   doc.setDrawColor(...lightGray)
   doc.line(20, footerY, 190, footerY)
 
   doc.setFontSize(8)
   doc.setTextColor(100, 116, 139)
   doc.setFont('helvetica', 'normal')
-  doc.text('Thank you for your business!', 105, footerY + 5, {
-    align: 'center',
-  })
+  doc.text('Thank you for your business!', 105, footerY + 5, { align: 'center' })
   doc.text(
     'For any queries, please contact us at ' + data.merchantEmail,
     105,
@@ -295,3 +342,4 @@ export const formatInvoiceDate = (dateString: string): string => {
     day: 'numeric',
   })
 }
+

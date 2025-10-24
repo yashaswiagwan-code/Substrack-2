@@ -15,3 +15,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/manage-stripe-plan/deno.json"
 entrypoint = "./functions/manage-stripe-plan/index.ts"
+
+[functions.send-email]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-email/deno.json"
+entrypoint = "./functions/send-email/index.ts"

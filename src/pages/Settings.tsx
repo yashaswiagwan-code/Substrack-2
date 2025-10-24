@@ -1,4 +1,4 @@
-// src/pages/Settings.tsx - Updated with merged Business & Profile
+// src/pages/Settings.tsx - Updated with proper address storage
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
@@ -24,6 +24,7 @@ export function Settings() {
     full_name: '',
     business_name: '',
     email: '',
+    phone: '',
     business_address: '',
     gst_number: '',
     logo_url: '',
@@ -43,7 +44,8 @@ export function Settings() {
         full_name: merchant.full_name || '',
         business_name: merchant.business_name || '',
         email: merchant.email || '',
-        business_address: merchant.bank_account || '', // Using bank_account as address placeholder
+        phone: merchant.phone || '',
+        business_address: merchant.bank_account || '', // Using bank_account as address
         gst_number: merchant.gst_number || '',
         logo_url: merchant.logo_url || '',
       });
@@ -119,6 +121,7 @@ export function Settings() {
         .update({
           full_name: businessInfo.full_name,
           business_name: businessInfo.business_name,
+          phone: businessInfo.phone,
           bank_account: businessInfo.business_address, // Store address in bank_account field
           gst_number: businessInfo.gst_number,
           logo_url: logoUrl,
@@ -130,6 +133,9 @@ export function Settings() {
       await refreshMerchant();
       setSuccessMessage('Business information updated successfully!');
       setLogoFile(null);
+      
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
       console.error('Error updating business info:', error);
       alert('Failed to update business information');
@@ -192,7 +198,7 @@ export function Settings() {
     }
 
     if (!validateStripeKey(stripeInfo.stripe_publishable_key, 'publishable')) {
-      alert('Invalid Stripe Publishable Key. Must start with pk_test_ or pk_live_');
+      alert('Invalid Stripe Publishable Key. Must start with pk_test_ or pk_test_');
       setLoading(false);
       return;
     }
@@ -212,6 +218,9 @@ export function Settings() {
       await refreshMerchant();
       setSuccessMessage('Stripe API keys updated successfully!');
       setStripeTestResult(null);
+      
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
       console.error('Error updating Stripe keys:', error);
       alert('Failed to update Stripe API keys');
@@ -224,7 +233,8 @@ export function Settings() {
     <DashboardLayout title="Settings">
       <div className="max-w-4xl">
         {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center">
+            <Check className="w-5 h-5 mr-2" />
             {successMessage}
           </div>
         )}
@@ -260,6 +270,9 @@ export function Settings() {
               <form onSubmit={handleBusinessInfoSubmit} className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Business Information</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    This information will appear on your invoices and payment pages.
+                  </p>
                   
                   {/* Logo Upload */}
                   <div className="mb-6">
@@ -326,17 +339,33 @@ export function Settings() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Business Email *
-                      </label>
-                      <input
-                        type="email"
-                        value={businessInfo.email}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Business Email *
+                        </label>
+                        <input
+                          type="email"
+                          value={businessInfo.email}
+                          disabled
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={businessInfo.phone}
+                          onChange={(e) =>
+                            setBusinessInfo({ ...businessInfo, phone: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -352,6 +381,7 @@ export function Settings() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Enter your complete business address"
                       />
+                      <p className="text-xs text-gray-500 mt-1">This will appear on your invoices</p>
                     </div>
 
                     <div>
@@ -367,7 +397,7 @@ export function Settings() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="e.g., 22AAAAA0000A1Z5"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Optional - for Indian businesses</p>
+                      <p className="text-xs text-gray-500 mt-1">Optional - for Indian businesses (will show on invoices if provided)</p>
                     </div>
                   </div>
                 </div>
@@ -533,8 +563,9 @@ export function Settings() {
                         <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                           <li>Copy the webhook URL above</li>
                           <li>Go to Stripe Dashboard → Webhooks</li>
-                          <li>Click "Add endpoint" and paste the URL</li>
+                          <li>Click "Add destination"</li>
                           <li>Select events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
+                          <li>Select "Webhook endpoint" and paste the webhook URL</li>
                           <li>Copy the "Signing secret" (starts with whsec_)</li>
                           <li>Paste it in the field below</li>
                         </ol>

@@ -1,4 +1,4 @@
-// src/pages/Payments.tsx - Complete Payments & Invoices Page with PDF
+// src/pages/Payments.tsx - Updated with INR currency and proper invoice data
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '../components/DashboardLayout'
 import { supabase } from '../lib/supabase'
@@ -148,16 +148,14 @@ export function Payments() {
   const downloadInvoice = async (transaction: PaymentTransaction) => {
     try {
       // Fetch merchant details from Supabase
-      // Adjust the table name and columns based on your schema
       const { data: merchantData, error: merchantError } = await supabase
         .from('merchants')
-        .select('business_name, email, phone, address, gst_number')
+        .select('business_name, email, phone, bank_account, gst_number, logo_url')
         .eq('id', user!.id)
         .single()
 
       if (merchantError) {
         console.error('Error fetching merchant data:', merchantError)
-        // Continue with default values if merchant data fetch fails
       }
 
       // Prepare invoice data for PDF generator
@@ -169,19 +167,20 @@ export function Payments() {
         // Merchant Info - use fetched data or defaults
         merchantName: merchantData?.business_name || 'Your Business Name',
         merchantEmail: merchantData?.email || user?.email || 'contact@yourbusiness.com',
-        merchantAddress: merchantData?.address || undefined,
+        merchantAddress: merchantData?.bank_account || undefined, // Using bank_account as address
         merchantGST: merchantData?.gst_number || undefined,
         merchantPhone: merchantData?.phone || undefined,
+        merchantLogo: merchantData?.logo_url || undefined,
         
         // Customer Info
         customerName: transaction.subscriber.customer_name,
         customerEmail: transaction.subscriber.customer_email,
         
-        // Payment Info
+        // Payment Info (Amount in INR)
         planName: transaction.plan.name,
         planDescription: 'Subscription Service',
         amount: transaction.amount,
-        currency: '$',
+        currency: '₹', // Changed to INR
         status: transaction.status,
         
         // Additional Info
@@ -191,7 +190,7 @@ export function Payments() {
       }
 
       // Generate and download PDF
-      generateInvoicePDF(invoiceData)
+      await generateInvoicePDF(invoiceData)
       
     } catch (error) {
       console.error('Error generating invoice:', error)
@@ -214,7 +213,7 @@ export function Payments() {
       tx.subscriber.customer_name,
       tx.subscriber.customer_email,
       formatDate(tx.payment_date),
-      `$${tx.amount.toFixed(2)}`,
+      `₹${tx.amount.toFixed(2)}`,
       tx.status,
       tx.plan.name,
     ])
@@ -429,7 +428,7 @@ export function Payments() {
                           {formatDate(transaction.payment_date)}
                         </td>
                         <td className='px-6 py-4 font-medium'>
-                          ${transaction.amount.toFixed(2)}
+                          ₹{transaction.amount.toFixed(2)}
                         </td>
                         <td className='px-6 py-4'>
                           <span className={`flex items-center ${badge.color}`}>
