@@ -21,3 +21,15 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/send-email/deno.json"
 entrypoint = "./functions/send-email/index.ts"
+
+[functions.generate-access-token]
+enabled = true
+verify_jwt = false
+import_map = "./functions/generate-access-token/deno.json"
+entrypoint = "./functions/generate-access-token/index.ts"
+
+[functions.exchange-token]
+enabled = true
+verify_jwt = false
+import_map = "./functions/exchange-token/deno.json"
+entrypoint = "./functions/exchange-token/index.ts"

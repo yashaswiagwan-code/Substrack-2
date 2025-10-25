@@ -1,10 +1,9 @@
-// src/pages/Settings.tsx - Updated with proper address storage
+// src/pages/Settings.tsx - Complete with Widget Integration
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, RefreshCw, Check, X, Copy, Upload, Image as ImageIcon } from 'lucide-react';
-
+import { Eye, EyeOff, RefreshCw, Check, X, Copy, Upload, Image as ImageIcon, Download } from 'lucide-react';
 export function Settings() {
   const { user, merchant, refreshMerchant } = useAuth();
   const [activeTab, setActiveTab] = useState('business');
@@ -19,6 +18,7 @@ export function Settings() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState('');
 
   const [businessInfo, setBusinessInfo] = useState({
     full_name: '',
@@ -44,8 +44,8 @@ export function Settings() {
         full_name: merchant.full_name || '',
         business_name: merchant.business_name || '',
         email: merchant.email || '',
-        phone: merchant.phone || '',
-        business_address: merchant.bank_account || '', // Using bank_account as address
+        phone: (merchant as any).phone || '',
+        business_address: merchant.bank_account || '',
         gst_number: merchant.gst_number || '',
         logo_url: merchant.logo_url || '',
       });
@@ -55,6 +55,7 @@ export function Settings() {
         stripe_webhook_secret: (merchant as any).stripe_webhook_secret || '',
       });
       setLogoPreview(merchant.logo_url || null);
+      setRedirectUrl((merchant as any).redirect_url || '');
     }
   }, [merchant]);
 
@@ -113,7 +114,6 @@ export function Settings() {
     setSuccessMessage('');
 
     try {
-      // Upload logo if changed
       const logoUrl = await uploadLogo();
 
       const { error } = await supabase
@@ -122,7 +122,7 @@ export function Settings() {
           full_name: businessInfo.full_name,
           business_name: businessInfo.business_name,
           phone: businessInfo.phone,
-          bank_account: businessInfo.business_address, // Store address in bank_account field
+          bank_account: businessInfo.business_address,
           gst_number: businessInfo.gst_number,
           logo_url: logoUrl,
         })
@@ -134,7 +134,6 @@ export function Settings() {
       setSuccessMessage('Business information updated successfully!');
       setLogoFile(null);
       
-      // Auto-hide success message after 3 seconds
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
       console.error('Error updating business info:', error);
@@ -198,7 +197,7 @@ export function Settings() {
     }
 
     if (!validateStripeKey(stripeInfo.stripe_publishable_key, 'publishable')) {
-      alert('Invalid Stripe Publishable Key. Must start with pk_test_ or pk_test_');
+      alert('Invalid Stripe Publishable Key. Must start with pk_test_ or pk_live_');
       setLoading(false);
       return;
     }
@@ -219,11 +218,35 @@ export function Settings() {
       setSuccessMessage('Stripe API keys updated successfully!');
       setStripeTestResult(null);
       
-      // Auto-hide success message after 3 seconds
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error: any) {
       console.error('Error updating Stripe keys:', error);
       alert('Failed to update Stripe API keys');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRedirectUrlSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setSuccessMessage('');
+
+    try {
+      const { error } = await supabase
+        .from('merchants')
+        .update({ redirect_url: redirectUrl })
+        .eq('id', user!.id);
+
+      if (error) throw error;
+
+      await refreshMerchant();
+      setSuccessMessage('Redirect URL saved successfully!');
+      
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error: any) {
+      console.error('Error saving redirect URL:', error);
+      alert('Failed to save redirect URL');
     } finally {
       setLoading(false);
     }
@@ -262,6 +285,16 @@ export function Settings() {
               >
                 Stripe Integration
               </button>
+              <button
+                onClick={() => setActiveTab('widget')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'widget'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Widget Integration
+              </button>
             </nav>
           </div>
 
@@ -274,7 +307,6 @@ export function Settings() {
                     This information will appear on your invoices and payment pages.
                   </p>
                   
-                  {/* Logo Upload */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Business Logo
@@ -397,7 +429,7 @@ export function Settings() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="e.g., 22AAAAA0000A1Z5"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Optional - for Indian businesses (will show on invoices if provided)</p>
+                      <p className="text-xs text-gray-500 mt-1">Optional - for Indian businesses</p>
                     </div>
                   </div>
                 </div>
@@ -563,11 +595,11 @@ export function Settings() {
                         <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                           <li>Copy the webhook URL above</li>
                           <li>Go to Stripe Dashboard → Webhooks</li>
-                          <li>Click "Add destination"</li>
+                          <li>Click "Add endpoint"</li>
+                          <li>Paste the webhook URL</li>
                           <li>Select events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded, invoice.payment_failed</li>
-                          <li>Select "Webhook endpoint" and paste the webhook URL</li>
                           <li>Copy the "Signing secret" (starts with whsec_)</li>
-                          <li>Paste it in the field below</li>
+                          <li>Paste it below</li>
                         </ol>
                       </div>
 
@@ -601,7 +633,7 @@ export function Settings() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                          Starts with whsec_ (from Stripe webhook settings)
+                          Starts with whsec_
                         </p>
                       </div>
                     </div>
@@ -617,7 +649,7 @@ export function Settings() {
                           {testingStripe ? (
                             <>
                               <RefreshCw className="w-4 h-4 animate-spin" />
-                              Testing Connection...
+                              Testing...
                             </>
                           ) : (
                             <>
@@ -630,14 +662,14 @@ export function Settings() {
                         {stripeTestResult === 'success' && (
                           <div className="mt-3 flex items-center gap-2 text-sm text-green-600">
                             <Check className="w-4 h-4" />
-                            <span>Connection successful! Your Stripe keys are valid.</span>
+                            <span>Connection successful!</span>
                           </div>
                         )}
 
                         {stripeTestResult === 'error' && (
                           <div className="mt-3 flex items-center gap-2 text-sm text-red-600">
                             <X className="w-4 h-4" />
-                            <span>Connection failed. Please check your API keys.</span>
+                            <span>Connection failed. Check your keys.</span>
                           </div>
                         )}
                       </div>
@@ -655,9 +687,219 @@ export function Settings() {
                 </div>
               </form>
             )}
+
+            {activeTab === 'widget' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">🚀 Widget Integration</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Embed subscription verification with automatic customer login - No backend needed!
+                  </p>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center mb-2">
+                      <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h4 className="font-semibold text-blue-900">Your Widget ID</h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-white px-3 py-2 rounded border border-blue-300 font-mono text-sm">
+                        {(merchant as any)?.widget_id || 'Generating...'}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText((merchant as any)?.widget_id || '');
+                          alert('Widget ID copied!');
+                        }}
+                        className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+                    <h4 className="text-md font-semibold text-gray-800 mb-2">Auto-Login After Payment</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                      After customers subscribe, redirect them to your website with automatic access
+                    </p>
+
+                    <form onSubmit={handleRedirectUrlSave} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Your Website URL
+                        </label>
+                        <input
+                          type="url"
+                          value={redirectUrl}
+                          onChange={(e) => setRedirectUrl(e.target.value)}
+                          placeholder="https://yourwebsite.com/welcome"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Customers redirected here after payment with access token
+                        </p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                      >
+                        {loading ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Redirect URL'
+                        )}
+                      </button>
+                    </form>
+
+                    <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h5 className="font-semibold text-blue-900 mb-2">📋 How It Works:</h5>
+                      <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                        <li>Customer subscribes to your plan</li>
+                        <li>Payment succeeds via Stripe</li>
+                        <li>Redirected to: <code className="bg-blue-100 px-1 rounded text-xs">{redirectUrl || 'your-url'}?substrack_session=xxx</code></li>
+                        <li>SDK auto-exchanges session for token</li>
+                        <li>Customer logged in automatically ✅</li>
+                      </ol>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+                    <h4 className="text-md font-semibold text-gray-800 mb-3">📦 SDK Integration</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Add this script to your website:
+                    </p>
+                    
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm mb-2">
+{`<!-- Add to your website's <head> or before </body> -->
+<script src="${window.location.origin}/substrack-sdk.js"></script>
+
+<script>
+  // Initialize SDK
+  const substrack = new Substrack();
+  substrack.init().then(() => {
+    
+    // Check if user has subscription
+    if (substrack.hasSubscription()) {
+      // Show premium content
+      document.getElementById('premium').style.display = 'block';
+      
+      // Get subscriber info
+      const user = substrack.getSubscriber();
+      console.log('Plan:', user.plan);
+      console.log('Features:', user.features);
+    } else {
+      // Show subscribe button
+      document.getElementById('subscribe-btn').style.display = 'block';
+    }
+  });
+</script>`}
+                    </pre>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const code = `<script src="${window.location.origin}/substrack-sdk.js"></script>`;
+                        navigator.clipboard.writeText(code);
+                        alert('SDK code copied!');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+                    >
+                      <Copy className="w-4 h-4 mr-1" />
+                      Copy SDK code
+                    </button>
+                  </div>
+
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h5 className="font-semibold text-green-900 mb-2">🎯 Download Example</h5>
+                    <p className="text-sm text-green-800 mb-3">
+                      Download a working HTML example to test locally:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Substrack Integration Test</title>
+  <style>
+    body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+    .premium { display: none; background: #d1fae5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    button { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>My Premium App 🚀</h1>
+  <div id="substrack-status"></div>
+  
+  <div id="premium" class="premium">
+    <h2>🎉 Welcome, Premium Member!</h2>
+    <p>You have full access to all features.</p>
+    <p>Your exclusive content appears here...</p>
+  </div>
+  
+  <div id="subscribe-section">
+    <h3>Upgrade to Premium</h3>
+    <p>Subscribe now to unlock all features!</p>
+    <a href="${window.location.origin}/subscribe/${(merchant as any)?.widget_id || 'PLAN_ID'}">
+      <button>Subscribe Now</button>
+    </a>
+  </div>
+
+  <script src="${window.location.origin}/substrack-sdk.js"></script>
+  <script>
+    const substrack = new Substrack();
+    substrack.init().then(() => {
+      // Show widget badge
+      substrack.showWidget('substrack-status');
+      
+      if (substrack.hasSubscription()) {
+        // User has subscription - show premium content
+        document.getElementById('premium').style.display = 'block';
+        document.getElementById('subscribe-section').style.display = 'none';
+        
+        // Get subscriber details
+        const subscriber = substrack.getSubscriber();
+        console.log('Subscriber:', subscriber);
+      } else {
+        // No subscription - show subscribe button
+        document.getElementById('premium').style.display = 'none';
+        document.getElementById('subscribe-section').style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>`;
+                        
+                        const blob = new Blob([html], { type: 'text/html' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'substrack-test.html';
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm flex items-center"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Test HTML
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </DashboardLayout>
   );
 }
+

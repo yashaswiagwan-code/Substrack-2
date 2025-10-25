@@ -20,6 +20,8 @@ export interface Merchant {
   logo_url?: string;
   stripe_api_key?: string;
   stripe_publishable_key?: string;
+  widget_id?: string;
+  redirect_url?: string; // ADD THIS LINE
   created_at: string;
   updated_at: string;
 }
