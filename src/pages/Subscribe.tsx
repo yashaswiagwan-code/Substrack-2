@@ -1,8 +1,8 @@
-// src/pages/Subscribe.tsx - FIXED VERSION with proper metadata
+// src/pages/Subscribe.tsx - Enhanced with Plan Availability Check
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, XCircle } from 'lucide-react';
 
 export function Subscribe() {
   const { planId } = useParams<{ planId: string }>();
@@ -13,6 +13,7 @@ export function Subscribe() {
   const [error, setError] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [planInactive, setPlanInactive] = useState(false);
 
   useEffect(() => {
     loadPlanDetails();
@@ -20,22 +21,27 @@ export function Subscribe() {
 
   const loadPlanDetails = async () => {
     try {
+      // First, try to load the plan regardless of active status to show proper message
       const { data: planData, error: planError } = await supabase
         .from('subscription_plans')
         .select('*, merchants(*)')
         .eq('id', planId)
-        .eq('is_active', true)
         .single();
 
       if (planError) throw planError;
       if (!planData) {
-        setError('Plan not found or inactive');
+        setError('Plan not found');
         return;
       }
 
       console.log('✅ Plan loaded:', planData);
       setPlan(planData);
       setMerchant((planData as any).merchants);
+
+      // Check if plan is inactive
+      if (!planData.is_active) {
+        setPlanInactive(true);
+      }
     } catch (err: any) {
       console.error('Error loading plan:', err);
       setError('Failed to load plan details');
@@ -115,6 +121,76 @@ export function Subscribe() {
           <div className="text-red-600 text-5xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Plan Not Available</h2>
           <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "Plan Temporarily Unavailable" message if plan is inactive
+  if (planInactive) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-xl shadow-lg p-8 md:p-12 text-center">
+            {/* Icon */}
+            <div className="mb-6">
+              <XCircle className="w-20 h-20 text-orange-500 mx-auto" />
+            </div>
+
+            {/* Heading */}
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Plan Temporarily Unavailable
+            </h1>
+
+            {/* Plan Info */}
+            <div className="bg-gray-50 rounded-lg p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">{plan.name}</h2>
+              <p className="text-2xl font-bold text-gray-600">
+                ₹{plan.price}
+                <span className="text-base font-normal">/{plan.billing_cycle}</span>
+              </p>
+            </div>
+
+            {/* Message */}
+            <p className="text-lg text-gray-600 mb-4">
+              This subscription plan is currently paused by {merchant?.business_name || 'the merchant'}.
+            </p>
+            <p className="text-gray-500 mb-8">
+              New subscriptions are temporarily unavailable. Please check back later or contact support for more information.
+            </p>
+
+            {/* Contact Info */}
+            {merchant?.email && (
+              <div className="border-t pt-6">
+                <p className="text-sm text-gray-500 mb-3">Need assistance?</p>
+                <a
+                  href={`mailto:${merchant.email}`}
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                  </svg>
+                  Contact Support
+                </a>
+              </div>
+            )}
+
+            {/* Back Button */}
+            <div className="mt-6">
+              <button
+                onClick={() => window.history.back()}
+                className="text-gray-600 hover:text-gray-800 text-sm font-medium"
+              >
+                ← Go Back
+              </button>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div className="mt-8 text-center text-sm text-gray-500">
+            <p>Existing subscribers are not affected and will continue to have access.</p>
+          </div>
         </div>
       </div>
     );

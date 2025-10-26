@@ -1,9 +1,10 @@
-// src/pages/Settings.tsx - Complete with Widget Integration
+// src/pages/Settings.tsx - FIXED WITH WIDGET SUPPORT
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, RefreshCw, Check, X, Copy, Upload, Image as ImageIcon, Download } from 'lucide-react';
+
 export function Settings() {
   const { user, merchant, refreshMerchant } = useAuth();
   const [activeTab, setActiveTab] = useState('business');
@@ -15,6 +16,7 @@ export function Settings() {
   const [testingStripe, setTestingStripe] = useState(false);
   const [stripeTestResult, setStripeTestResult] = useState<'success' | 'error' | null>(null);
   const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
+  const [widgetIdCopied, setWidgetIdCopied] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -37,6 +39,9 @@ export function Settings() {
   });
 
   const webhookUrl = `${window.location.origin.replace(window.location.hostname, 'niisdiotuzvydotoaurt.supabase.co')}/functions/v1/stripe-webhook`;
+
+  // Get widget_id (use merchant's id as widget_id)
+  const widgetId = merchant?.id || '';
 
   useEffect(() => {
     if (merchant) {
@@ -183,6 +188,12 @@ export function Settings() {
     navigator.clipboard.writeText(webhookUrl);
     setWebhookUrlCopied(true);
     setTimeout(() => setWebhookUrlCopied(false), 2000);
+  };
+
+  const copyWidgetId = () => {
+    navigator.clipboard.writeText(widgetId);
+    setWidgetIdCopied(true);
+    setTimeout(() => setWidgetIdCopied(false), 2000);
   };
 
   const handleStripeSubmit = async (e: React.FormEvent) => {
@@ -705,17 +716,15 @@ export function Settings() {
                     </div>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 bg-white px-3 py-2 rounded border border-blue-300 font-mono text-sm">
-                        {(merchant as any)?.widget_id || 'Generating...'}
+                        {widgetId || 'Loading...'}
                       </code>
                       <button
                         type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText((merchant as any)?.widget_id || '');
-                          alert('Widget ID copied!');
-                        }}
-                        className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                        onClick={copyWidgetId}
+                        disabled={!widgetId}
+                        className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
                       >
-                        Copy
+                        {widgetIdCopied ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
                   </div>
@@ -849,7 +858,8 @@ export function Settings() {
   <div id="subscribe-section">
     <h3>Upgrade to Premium</h3>
     <p>Subscribe now to unlock all features!</p>
-    <a href="${window.location.origin}/subscribe/${(merchant as any)?.widget_id || 'PLAN_ID'}">
+    <!-- Replace PLAN_ID with your actual plan ID from Substrack dashboard -->
+    <a href="${window.location.origin}/subscribe/YOUR_PLAN_ID">
       <button>Subscribe Now</button>
     </a>
   </div>
@@ -902,4 +912,3 @@ export function Settings() {
     </DashboardLayout>
   );
 }
-

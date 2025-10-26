@@ -1,4 +1,4 @@
-// src/pages/Subscribers.tsx - COMPLETELY FIXED
+// src/pages/Subscribers.tsx - REMOVED FAILED FILTER
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '../components/DashboardLayout'
 import { supabase } from '../lib/supabase'
@@ -251,19 +251,6 @@ export function Subscribers() {
                       }`}
                     >
                       Cancelled
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStatusFilter('failed')
-                        setShowFilterMenu(false)
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
-                        statusFilter === 'failed'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      Failed
                     </button>
                   </div>
                 </div>

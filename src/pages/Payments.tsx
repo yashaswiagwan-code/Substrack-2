@@ -1,4 +1,4 @@
-// src/pages/Payments.tsx - Updated with INR currency and proper invoice data
+// src/pages/Payments.tsx - Added Dynamic Plan Filter
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '../components/DashboardLayout'
 import { supabase } from '../lib/supabase'
@@ -33,7 +33,9 @@ export function Payments() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [planFilter, setPlanFilter] = useState<string>('all')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const [availablePlans, setAvailablePlans] = useState<string[]>([])
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -47,7 +49,7 @@ export function Payments() {
 
   useEffect(() => {
     filterTransactions()
-  }, [searchQuery, statusFilter, transactions])
+  }, [searchQuery, statusFilter, planFilter, transactions])
 
   const loadTransactions = async () => {
     try {
@@ -91,6 +93,12 @@ export function Payments() {
 
       setTransactions(formatted)
       setFilteredTransactions(formatted)
+
+      // Extract unique plan names for filter
+      const uniquePlans = Array.from(
+        new Set(formatted.map((tx) => tx.plan.name))
+      ).sort()
+      setAvailablePlans(uniquePlans)
     } catch (error) {
       console.error('Error loading transactions:', error)
     } finally {
@@ -116,6 +124,11 @@ export function Payments() {
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter((tx) => tx.status === statusFilter)
+    }
+
+    // Plan filter
+    if (planFilter !== 'all') {
+      filtered = filtered.filter((tx) => tx.plan.name === planFilter)
     }
 
     setFilteredTransactions(filtered)
@@ -167,7 +180,7 @@ export function Payments() {
         // Merchant Info - use fetched data or defaults
         merchantName: merchantData?.business_name || 'Your Business Name',
         merchantEmail: merchantData?.email || user?.email || 'contact@yourbusiness.com',
-        merchantAddress: merchantData?.bank_account || undefined, // Using bank_account as address
+        merchantAddress: merchantData?.bank_account || undefined,
         merchantGST: merchantData?.gst_number || undefined,
         merchantPhone: merchantData?.phone || undefined,
         merchantLogo: merchantData?.logo_url || undefined,
@@ -180,7 +193,7 @@ export function Payments() {
         planName: transaction.plan.name,
         planDescription: 'Subscription Service',
         amount: transaction.amount,
-        currency: '₹', // Changed to INR
+        currency: '₹',
         status: transaction.status,
         
         // Additional Info
@@ -279,63 +292,106 @@ export function Payments() {
               >
                 <Filter className='w-4 h-4 mr-2' />
                 Filter
+                {(statusFilter !== 'all' || planFilter !== 'all') && (
+                  <span className='ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 text-xs rounded-full'>
+                    {(statusFilter !== 'all' ? 1 : 0) + (planFilter !== 'all' ? 1 : 0)}
+                  </span>
+                )}
               </button>
 
               {showFilterMenu && (
-                <div className='absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20 border'>
-                  <div className='p-2'>
-                    <button
-                      onClick={() => {
-                        setStatusFilter('all')
-                        setShowFilterMenu(false)
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
-                        statusFilter === 'all'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      All Status
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStatusFilter('success')
-                        setShowFilterMenu(false)
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
-                        statusFilter === 'success'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      Success
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStatusFilter('failed')
-                        setShowFilterMenu(false)
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
-                        statusFilter === 'failed'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      Failed
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStatusFilter('pending')
-                        setShowFilterMenu(false)
-                      }}
-                      className={`block w-full text-left px-3 py-2 rounded text-sm ${
-                        statusFilter === 'pending'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      Pending
-                    </button>
+                <div className='absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-20 border'>
+                  <div className='p-3'>
+                    {/* Status Filter Section */}
+                    <div className='mb-3'>
+                      <p className='text-xs font-semibold text-gray-500 uppercase mb-2'>
+                        Status
+                      </p>
+                      <div className='space-y-1'>
+                        <button
+                          onClick={() => setStatusFilter('all')}
+                          className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                            statusFilter === 'all'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          All Status
+                        </button>
+                        <button
+                          onClick={() => setStatusFilter('success')}
+                          className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                            statusFilter === 'success'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          Success
+                        </button>
+                        <button
+                          onClick={() => setStatusFilter('pending')}
+                          className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                            statusFilter === 'pending'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          Pending
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className='border-t border-gray-200 my-3'></div>
+
+                    {/* Plan Filter Section */}
+                    <div>
+                      <p className='text-xs font-semibold text-gray-500 uppercase mb-2'>
+                        Plan
+                      </p>
+                      <div className='space-y-1 max-h-48 overflow-y-auto'>
+                        <button
+                          onClick={() => setPlanFilter('all')}
+                          className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                            planFilter === 'all'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          All Plans
+                        </button>
+                        {availablePlans.map((plan) => (
+                          <button
+                            key={plan}
+                            onClick={() => setPlanFilter(plan)}
+                            className={`block w-full text-left px-3 py-2 rounded text-sm ${
+                              planFilter === plan
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            {plan}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Clear All Filters */}
+                    {(statusFilter !== 'all' || planFilter !== 'all') && (
+                      <>
+                        <div className='border-t border-gray-200 my-3'></div>
+                        <button
+                          onClick={() => {
+                            setStatusFilter('all')
+                            setPlanFilter('all')
+                            setShowFilterMenu(false)
+                          }}
+                          className='block w-full text-center px-3 py-2 rounded text-sm text-red-600 hover:bg-red-50'
+                        >
+                          Clear All Filters
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -367,11 +423,12 @@ export function Payments() {
               Payment transactions will appear here once subscribers make
               payments
             </p>
-            {searchQuery || statusFilter !== 'all' ? (
+            {searchQuery || statusFilter !== 'all' || planFilter !== 'all' ? (
               <button
                 onClick={() => {
                   setSearchQuery('')
                   setStatusFilter('all')
+                  setPlanFilter('all')
                 }}
                 className='mt-4 text-blue-600 hover:text-blue-700 text-sm'
               >

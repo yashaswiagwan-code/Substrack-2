@@ -1,6 +1,6 @@
 // public/substrack-sdk.js
 // Substrack JavaScript SDK - No Backend Required
-// Version: 1.0.0
+// Version: 2.0.0
 
 (function(window) {
   'use strict';
@@ -10,12 +10,13 @@
       this.token = null;
       this.subscriber = null;
       this.initialized = false;
-      this.apiBase = window.location.origin; // Change this if hosting SDK separately
+      // Point to your Supabase functions
+      this.apiBase = 'https://niisdiotuzvydotoaurt.supabase.co/functions/v1';
     }
 
     // Initialize and check for token in URL or localStorage
     async init() {
-      console.log('🚀 Substrack SDK initialized');
+      console.log('🚀 Substrack SDK v2.0.0 initialized');
       
       // Check URL parameters first (after redirect from Substrack)
       const urlParams = new URLSearchParams(window.location.search);
@@ -23,28 +24,44 @@
       
       if (sessionId) {
         console.log('📦 Found session ID in URL, exchanging for token...');
-        await this.exchangeSessionForToken(sessionId);
+        const success = await this.exchangeSessionForToken(sessionId);
         
-        // Clean URL (remove session param)
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, document.title, cleanUrl);
+        if (success) {
+          // Clean URL (remove session param)
+          const cleanUrl = window.location.pathname + window.location.hash;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
       } else {
         // Load from localStorage
         this.loadFromStorage();
       }
       
       this.initialized = true;
+      
+      // Trigger custom event for app to listen to
+      window.dispatchEvent(new CustomEvent('substrack:initialized', {
+        detail: { hasSubscription: this.hasSubscription() }
+      }));
+      
       return this;
     }
 
     // Exchange Stripe session for access token
     async exchangeSessionForToken(sessionId) {
       try {
-        const response = await fetch(`${this.apiBase}/functions/v1/exchange-token`, {
+        console.log('🔄 Exchanging session for token...');
+        
+        const response = await fetch(`${this.apiBase}/exchange-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId })
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Exchange failed:', errorData.error);
+          return false;
+        }
         
         const data = await response.json();
         
@@ -52,6 +69,7 @@
           this.setToken(data.token);
           this.subscriber = data.subscriber;
           console.log('✅ Token exchanged successfully');
+          console.log('👤 Subscriber:', data.subscriber.email);
           return true;
         } else {
           console.error('❌ No token in response');
@@ -80,8 +98,9 @@
           expiresAt: payload.expires_at,
         };
         localStorage.setItem('substrack_subscriber', JSON.stringify(this.subscriber));
+        console.log('💾 Token and subscriber info saved to localStorage');
       } catch (e) {
-        console.error('Error decoding token:', e);
+        console.error('❌ Error decoding token:', e);
       }
     }
 
@@ -90,11 +109,16 @@
       this.token = localStorage.getItem('substrack_token');
       const subscriberData = localStorage.getItem('substrack_subscriber');
       
+      if (this.token) {
+        console.log('📂 Loaded token from localStorage');
+      }
+      
       if (subscriberData) {
         try {
           this.subscriber = JSON.parse(subscriberData);
+          console.log('📂 Loaded subscriber from localStorage:', this.subscriber.email);
         } catch (e) {
-          console.error('Error parsing subscriber data:', e);
+          console.error('❌ Error parsing subscriber data:', e);
         }
       }
     }
@@ -131,6 +155,11 @@
       return this.subscriber;
     }
 
+    // Get token (for API calls if needed)
+    getToken() {
+      return this.token;
+    }
+
     // Logout / clear token
     logout() {
       this.token = null;
@@ -138,13 +167,16 @@
       localStorage.removeItem('substrack_token');
       localStorage.removeItem('substrack_subscriber');
       console.log('👋 Logged out from Substrack');
+      
+      // Trigger custom event
+      window.dispatchEvent(new CustomEvent('substrack:logout'));
     }
 
     // Show subscription widget (optional UI helper)
     showWidget(containerId) {
       const container = document.getElementById(containerId);
       if (!container) {
-        console.error(`Container ${containerId} not found`);
+        console.error(`❌ Container ${containerId} not found`);
         return;
       }
       
@@ -179,16 +211,28 @@
       }
     }
 
-    // Refresh subscription status from server
-    async refresh() {
-      if (!this.subscriber || !this.subscriber.email) {
-        console.warn('No subscriber info to refresh');
+    // Verify token is still valid (optional - call server to check)
+    async verifyToken() {
+      if (!this.token) {
         return false;
       }
 
-      // TODO: Implement refresh endpoint if needed
-      console.log('Refresh not yet implemented');
-      return false;
+      try {
+        // Decode token and check expiry
+        const payload = JSON.parse(atob(this.token.split('.')[1]));
+        const exp = payload.exp;
+        
+        if (exp && exp < Date.now() / 1000) {
+          console.warn('⚠️ Token expired');
+          this.logout();
+          return false;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('❌ Error verifying token:', error);
+        return false;
+      }
     }
   }
 
@@ -209,6 +253,6 @@
     }
   }
 
-  console.log('✅ Substrack SDK loaded');
+  console.log('✅ Substrack SDK v2.0.0 loaded');
 
 })(window);

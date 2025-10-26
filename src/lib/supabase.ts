@@ -1,3 +1,4 @@
+// src/lib/supabase.ts - UPDATED WITH NEW FIELDS
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -20,8 +21,10 @@ export interface Merchant {
   logo_url?: string;
   stripe_api_key?: string;
   stripe_publishable_key?: string;
+  stripe_webhook_secret?: string;
   widget_id?: string;
-  redirect_url?: string; // ADD THIS LINE
+  redirect_url?: string;
+  phone?: string;
   created_at: string;
   updated_at: string;
 }
@@ -69,5 +72,16 @@ export interface PaymentTransaction {
   status: 'success' | 'failed' | 'pending';
   stripe_payment_id?: string;
   payment_date: string;
+  created_at: string;
+}
+
+export interface AccessToken {
+  id: string;
+  merchant_id: string;
+  subscriber_id: string;
+  token: string;
+  stripe_session_id?: string;
+  expires_at: string;
+  used: boolean;
   created_at: string;
 }

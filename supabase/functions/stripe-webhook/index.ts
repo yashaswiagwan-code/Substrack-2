@@ -1,4 +1,4 @@
-// supabase/functions/stripe-webhook/index.ts - COMPLETE WITH INVOICE ATTACHMENT
+// supabase/functions/stripe-webhook/index.ts - FIXED LOGO LOADING
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -8,6 +8,9 @@ import autoTable from 'https://esm.sh/jspdf-autotable@3.8.2'
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+// JWT Secret for token generation
+const JWT_SECRET = Deno.env.get('JWT_SECRET') || 'your-secret-key-change-this'
 
 // Invoice Data Interface
 interface InvoiceData {
@@ -32,7 +35,97 @@ interface InvoiceData {
   billingCycle?: string
 }
 
-// Generate Invoice PDF as Base64 - EXACT COPY OF YOUR pdfInvoiceGenerator.ts
+// Generate JWT token for subscriber
+async function generateJWTToken(subscriberId: string, merchantId: string): Promise<string> {
+  try {
+    // Get subscriber details with plan info
+    const { data: subscriber, error } = await supabase
+      .from('subscribers')
+      .select(`
+        id,
+        customer_email,
+        customer_name,
+        status,
+        next_renewal_date,
+        subscription_plans (
+          id,
+          name,
+          features
+        )
+      `)
+      .eq('id', subscriberId)
+      .eq('merchant_id', merchantId)
+      .single()
+
+    if (error || !subscriber) {
+      throw new Error('Subscriber not found')
+    }
+
+    // Create JWT payload
+    const payload = {
+      sub: subscriber.customer_email,
+      email: subscriber.customer_email,
+      name: subscriber.customer_name,
+      merchant_id: merchantId,
+      subscriber_id: subscriber.id,
+      plan_id: (subscriber.subscription_plans as any)?.id,
+      plan_name: (subscriber.subscription_plans as any)?.name,
+      features: (subscriber.subscription_plans as any)?.features || [],
+      status: subscriber.status,
+      expires_at: subscriber.next_renewal_date,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60), // 90 days
+    }
+
+    // Sign JWT using Web Crypto API
+    const encoder = new TextEncoder()
+    const keyBuf = encoder.encode(JWT_SECRET)
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyBuf,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+
+    // Create JWT manually
+    const header = { alg: 'HS256', typ: 'JWT' }
+    const encodedHeader = btoa(JSON.stringify(header))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+    
+    const encodedPayload = btoa(JSON.stringify(payload))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+    
+    const data = encoder.encode(`${encodedHeader}.${encodedPayload}`)
+    const signature = await crypto.subtle.sign('HMAC', key, data)
+    
+    // Convert signature to base64url
+    const signatureArray = new Uint8Array(signature)
+    let binaryString = ''
+    for (let i = 0; i < signatureArray.length; i++) {
+      binaryString += String.fromCharCode(signatureArray[i])
+    }
+    const encodedSignature = btoa(binaryString)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '')
+    
+    const token = `${encodedHeader}.${encodedPayload}.${encodedSignature}`
+
+    console.log('✅ JWT token generated for subscriber:', subscriber.customer_email)
+    
+    return token
+  } catch (error: any) {
+    console.error('❌ Error generating JWT token:', error.message)
+    throw error
+  }
+}
+
+// Generate Invoice PDF as Base64
 async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
   const doc = new jsPDF()
 
@@ -45,21 +138,27 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
   // HEADER SECTION
   if (data.merchantLogo) {
     try {
-      const img = new Image()
-      img.crossOrigin = 'Anonymous'
-      img.src = data.merchantLogo
+      console.log('📥 Fetching merchant logo...')
+      const logoResponse = await fetch(data.merchantLogo)
       
-      await new Promise((resolve, reject) => {
-        img.onload = resolve
-        img.onerror = reject
-        setTimeout(reject, 5000)
-      }).then(() => {
-        doc.addImage(img, 'PNG', 20, currentY - 5, 30, 30)
-      }).catch(() => {
-        console.log('Logo loading failed, continuing without logo')
-      })
+      if (logoResponse.ok) {
+        const logoBlob = await logoResponse.arrayBuffer()
+        const logoBase64 = btoa(
+          new Uint8Array(logoBlob).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        )
+        
+        // Determine image type from URL or content-type
+        const contentType = logoResponse.headers.get('content-type') || 'image/png'
+        const imageType = contentType.includes('jpeg') || contentType.includes('jpg') ? 'JPEG' : 'PNG'
+        
+        const logoDataUrl = `data:${contentType};base64,${logoBase64}`
+        doc.addImage(logoDataUrl, imageType, 20, currentY - 5, 30, 30)
+        console.log('✅ Logo added to PDF')
+      } else {
+        console.log('⚠️ Logo fetch failed with status:', logoResponse.status)
+      }
     } catch (error) {
-      console.log('Error loading logo:', error)
+      console.log('⚠️ Error loading logo, continuing without it:', error)
     }
   }
 
@@ -166,7 +265,6 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
 
   currentY = Math.max(currentY, rightY) + 15
 
-  // ITEMS TABLE WITH GST
   doc.setTextColor(...textColor)
 
   const totalAmount = data.amount
@@ -210,7 +308,6 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
 
   const finalY = (doc as any).lastAutoTable.finalY + 10
 
-  // TOTALS SECTION
   const totalsX = 125
   let totalsY = finalY
 
@@ -237,7 +334,6 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
 
   doc.setTextColor(...textColor)
 
-  // PAYMENT INFO
   if (data.transactionId || data.paymentMethod) {
     if (totalsY > 240) {
       doc.addPage()
@@ -263,7 +359,6 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
     }
   }
 
-  // FOOTER
   const pageHeight = doc.internal.pageSize.height || doc.internal.pageSize.getHeight()
   const footerY = pageHeight - 20
 
@@ -281,7 +376,6 @@ async function generateInvoicePDFBase64(data: InvoiceData): Promise<string> {
     { align: 'center' }
   )
 
-  // Return base64
   const pdfBase64 = doc.output('datauristring').split(',')[1]
   return pdfBase64
 }
@@ -322,7 +416,7 @@ async function sendEmailWithAttachment(to: string, from: string, subject: string
   }
 }
 
-// Email templates - UPDATED WITH merchantEmail
+// Email templates
 function getWelcomeEmailHtml(customerName: string, planName: string, amount: number, merchantName: string, merchantEmail: string, nextBillingDate: string) {
   return `
     <!DOCTYPE html>
@@ -518,12 +612,12 @@ serve(async (req) => {
     const body = await req.text()
     const parsedBody = JSON.parse(body)
     
-    console.log('📧 Event type:', parsedBody.type)
+    console.log('🔧 Event type:', parsedBody.type)
     
     let merchantId = parsedBody.data?.object?.metadata?.merchant_id
     
-    if (!merchantId && parsedBody.data?.object?.parent?.subscription_details?.metadata) {
-      merchantId = parsedBody.data.object.parent.subscription_details.metadata.merchant_id
+    if (!merchantId && parsedBody.data?.object?.subscription_data?.metadata) {
+      merchantId = parsedBody.data.object.subscription_data.metadata.merchant_id
     }
     
     if (!merchantId && parsedBody.data?.object?.lines?.data?.[0]?.metadata?.merchant_id) {
@@ -554,7 +648,7 @@ serve(async (req) => {
 
     const { data: merchant, error: merchantError } = await supabase
       .from('merchants')
-      .select('stripe_api_key, stripe_webhook_secret, business_name, email, bank_account, gst_number, logo_url')
+      .select('stripe_api_key, stripe_webhook_secret, business_name, email, bank_account, gst_number, logo_url, phone')
       .eq('id', merchantId)
       .single()
 
@@ -583,7 +677,7 @@ serve(async (req) => {
       Stripe.createSubtleCryptoProvider()
     )
 
-    console.log('📧 Webhook event type:', event.type)
+    console.log('🔧 Webhook event type:', event.type)
 
     switch (event.type) {
       case 'checkout.session.completed':
@@ -620,7 +714,7 @@ serve(async (req) => {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe: Stripe, merchant: any) {
   console.log('🎉 Processing checkout.session.completed')
   
-  const { customer, subscription, metadata, customer_email } = session
+  const { customer, subscription, metadata, customer_email, id: sessionId } = session
   const { plan_id, merchant_id, customer_name } = metadata as any
 
   if (!subscription) {
@@ -680,7 +774,34 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe:
       throw error
     }
 
-    console.log('✅ Subscriber created successfully')
+    console.log('✅ Subscriber created successfully:', newSubscriber.id)
+
+    // 🔥 GENERATE JWT TOKEN FOR WIDGET
+    try {
+      console.log('🔑 Generating JWT token for widget...')
+      const jwtToken = await generateJWTToken(newSubscriber.id, merchant_id)
+      
+      // Store token in access_tokens table with session_id
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 90) // 90 days expiry
+
+      const { error: tokenError } = await supabase.from('access_tokens').insert({
+        merchant_id,
+        subscriber_id: newSubscriber.id,
+        token: jwtToken,
+        stripe_session_id: sessionId,
+        expires_at: expiresAt.toISOString(),
+        used: false,
+      })
+
+      if (tokenError) {
+        console.error('❌ Error storing access token:', tokenError)
+      } else {
+        console.log('✅ Access token stored with session_id:', sessionId)
+      }
+    } catch (tokenError) {
+      console.error('❌ Error generating/storing token:', tokenError)
+    }
 
     if (paymentAmount > 0 && newSubscriber) {
       await supabase.from('payment_transactions').insert({
@@ -711,6 +832,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe:
       merchantEmail: merchant.email,
       merchantAddress: merchant.bank_account,
       merchantGST: merchant.gst_number,
+      merchantPhone: merchant.phone,
       merchantLogo: merchant.logo_url,
       customerName: customer_name,
       customerEmail: customer_email,
@@ -860,7 +982,6 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice, merchant: any) {
 
   // Send email only for renewals, not first payment
   if (invoice.billing_reason !== 'subscription_create') {
-    // Generate Invoice PDF
     const invoiceId = `INV-${new Date().toISOString().split('T')[0].replace(/-/g, '').substring(2)}-${subscriber.id.substring(0, 8).toUpperCase()}`
     const invoiceDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
@@ -871,6 +992,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice, merchant: any) {
       merchantEmail: merchant.email,
       merchantAddress: merchant.bank_account,
       merchantGST: merchant.gst_number,
+      merchantPhone: merchant.phone,
       merchantLogo: merchant.logo_url,
       customerName: subscriber.customer_name,
       customerEmail: subscriber.customer_email,
